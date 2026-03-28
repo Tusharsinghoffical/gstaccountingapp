@@ -370,6 +370,13 @@ class PurchaseUpdateView(AuditorReadOnlyMixin, UpdateView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class OCRUploadView(AuditorReadOnlyMixin, View):
+    def get(self, request):
+        # Return 405 Method Not Allowed with helpful message
+        return JsonResponse({
+            'error': 'Method not allowed',
+            'message': 'OCR upload endpoint only accepts POST requests with file uploads'
+        }, status=405)
+    
     def post(self, request):
         if 'file' not in request.FILES:
             return JsonResponse({'error': 'No file uploaded'}, status=400)
