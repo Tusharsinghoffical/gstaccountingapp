@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import View, ListView, CreateView, UpdateView, DetailView, FormView, TemplateView
+from django.contrib.auth import views as auth_views
 from .forms import (
     PartyForm, SalesInvoiceForm, SalesInvoiceItemFormSet,
     PurchaseInvoiceForm, PurchaseInvoiceItemFormSet, PaymentEntryForm
@@ -42,7 +43,7 @@ class CustomLoginView(auth_views.LoginView):
     New users are shown the login form.
     """
     template_name = 'registration/login.html'
-    
+
     def dispatch(self, request, *args, **kwargs):
         # If user is already authenticated, redirect to dashboard
         if request.user.is_authenticated:
