@@ -33,28 +33,54 @@ class OCRInvoiceService:
             'items': []
         }
         
-        # 1. GSTIN (15 characters)
+        # 1. GSTIN (15 characters) - search entire text
         gstin_match = re.search(r'[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}', text)
         if gstin_match:
             data['gstin'] = gstin_match.group(0)
             
-        # 2. Invoice Number
-        inv_match = re.search(r'(?:Invoice No|Bill No|Inv #|No)\s*[:#-]?\s*([A-Za-z0-9/-]+)', text, re.I)
-        if inv_match:
-            data['invoice_no'] = inv_match.group(1)
+        # 2. Invoice/Bill Number - multiple patterns for better detection
+        # Try specific patterns first
+        bill_patterns = [
+            r'(?:Bill\s*No|Bill\s*#)\s*[:#-]?\s*([A-Za-z0-9/\-]+)',
+            r'(?:Invoice\s*No|Invoice\s*#|Inv\s*#)\s*[:#-]?\s*([A-Za-z0-9/\-]+)',
+            r'(?:SI\s*[-:]?\s*[0-9]+\s*[-/]\s*[0-9]+\s*[-/]\s*[0-9]+)',  # Pattern like SI-2025-26-0001
+            r'(?:No\.?\s*[:#]?\s*([A-Z]{1,3}[-]?[0-9]{4,}))',  # Generic invoice pattern
+        ]
+        
+        for pattern in bill_patterns:
+            inv_match = re.search(pattern, text, re.I)
+            if inv_match:
+                data['invoice_no'] = inv_match.group(1) if len(inv_match.groups()) > 0 else inv_match.group(0)
+                break
+        
+        # 3. Date - multiple formats
+        date_patterns = [
+            r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+            r'(\d{1,2}\s+\w{3,9}\s+\d{4})',
+            r'(\d{4}[-/]\d{1,2}[-/]\d{1,2})'
+        ]
+        
+        for pattern in date_patterns:
+            date_match = re.search(pattern, text, re.I)
+            if date_match:
+                data['invoice_date'] = date_match.group(1)
+                break
             
-        # 3. Date
-        date_match = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', text)
-        if date_match:
-            data['invoice_date'] = date_match.group(1)
-            
-        # 4. Total Amount
-        total_match = re.search(r'(?:Total|Grand Total|Net Payable|Amount|Net)\s*[:₹s]?\s*([\d,]+\.?\d*)', text, re.I)
-        if total_match:
-            amount_str = total_match.group(1).replace(',', '')
-            try:
-                data['net_amount'] = float(amount_str)
-            except ValueError:
-                pass
+        # 4. Total Amount - search for various total labels
+        amount_patterns = [
+            r'(?:Grand\s*Total|Total\s*Amount|Net\s*Payable|Total\s*\(INR\))\s*[:₹]?\s*([\d,]+\.?\d*)',
+            r'(?:Total)\s*[:₹]?\s*([\d,]+\.?\d*)',
+            r'₹\s*([\d,]+\.?\d*)'
+        ]
+        
+        for pattern in amount_patterns:
+            total_match = re.search(pattern, text, re.I)
+            if total_match:
+                amount_str = total_match.group(1).replace(',', '')
+                try:
+                    data['net_amount'] = float(amount_str)
+                    break
+                except ValueError:
+                    pass
                 
         return data

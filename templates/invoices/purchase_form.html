@@ -172,6 +172,12 @@
                                 <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
                                 <span class="text-xs font-black text-slate-600 uppercase tracking-widest">Active Draft</span>
                             </div>
+                            <!-- Hidden required fields for Django validation -->
+                            <input type="hidden" name="status" value="DRAFT">
+                            <input type="hidden" name="total_cgst" :value="summary.cgst">
+                            <input type="hidden" name="total_sgst" :value="summary.sgst">
+                            <input type="hidden" name="total_igst" :value="summary.igst">
+                            <input type="hidden" name="total_tds" value="0">
                         </div>
                     </div>
                 </div>
