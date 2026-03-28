@@ -376,7 +376,7 @@ class OCRUploadView(AuditorReadOnlyMixin, View):
             'error': 'Method not allowed',
             'message': 'OCR upload endpoint only accepts POST requests with file uploads'
         }, status=405)
-    
+
     def post(self, request):
         if 'file' not in request.FILES:
             return JsonResponse({'error': 'No file uploaded'}, status=400)

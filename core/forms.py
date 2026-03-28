@@ -1,6 +1,6 @@
 from django import forms
 from .models import (
-    CompanyProfile, INDIAN_STATES, Party, LedgerAccount, 
+    CompanyProfile, INDIAN_STATES, Party, LedgerAccount,
     SalesInvoice, SalesInvoiceItem, PurchaseInvoice, PurchaseInvoiceItem,
     PaymentEntry, PaymentAllocation
 )
@@ -10,8 +10,10 @@ from django.db.models import Q
 from django.forms import inlineformset_factory
 from .utils import get_fiscal_year, get_fy_range
 
+
 class CompanySetupForm(forms.ModelForm):
-    admin_username = forms.CharField(max_length=150, help_text="Superuser username")
+    admin_username = forms.CharField(
+        max_length=150, help_text="Superuser username")
     admin_email = forms.EmailField(help_text="Superuser email")
     admin_password = forms.CharField(widget=forms.PasswordInput, min_length=8)
     confirm_password = forms.CharField(widget=forms.PasswordInput)
@@ -52,13 +54,14 @@ class CompanySetupForm(forms.ModelForm):
         user.is_superuser = True
         user.is_staff = True
         user.save()
-        
+
         # Ensure the admin has the ADMIN role
         if hasattr(user, 'profile'):
             user.profile.role = 'ADMIN'
             user.profile.save()
-            
+
         return profile
+
 
 class PartyForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -68,12 +71,13 @@ class PartyForm(forms.ModelForm):
     class Meta:
         model = Party
         fields = [
-            'name', 'gstin', 'pan_no', 'party_type', 'address', 'city', 
+            'name', 'gstin', 'pan_no', 'party_type', 'address', 'city',
             'state', 'pin_code', 'phone', 'email', 'opening_balance', 'balance_type'
         ]
         widgets = {
             'address': forms.Textarea(attrs={'rows': 2}),
         }
+
 
 class SalesInvoiceForm(forms.ModelForm):
     class Meta:
@@ -105,8 +109,10 @@ class SalesInvoiceForm(forms.ModelForm):
             fy = get_fiscal_year()
             start_date, end_date = get_fy_range(fy)
             if invoice_date < start_date or invoice_date > end_date:
-                raise ValidationError(f"Invoice date must be within the current financial year ({fy}).")
+                raise ValidationError(
+                    f"Invoice date must be within the current financial year ({fy}).")
         return invoice_date
+
 
 SalesInvoiceItemFormSet = inlineformset_factory(
     SalesInvoice, SalesInvoiceItem,
@@ -119,12 +125,13 @@ SalesInvoiceItemFormSet = inlineformset_factory(
     can_delete=True
 )
 
+
 class PurchaseInvoiceForm(forms.ModelForm):
     class Meta:
         model = PurchaseInvoice
         fields = [
             'invoice_no', 'invoice_date', 'supplier', 'place_of_supply', 'due_date',
-            'payment_terms', 'narration', 'reference_no', 'status', 
+            'payment_terms', 'narration', 'reference_no', 'status',
             'rcm_applicable', 'itc_eligible', 'expense_ledger', 'stock_ledger', 'original_invoice_file',
             'total_taxable', 'total_cgst', 'total_sgst', 'total_igst', 'total_tds', 'net_amount'
         ]
@@ -140,12 +147,35 @@ class PurchaseInvoiceForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+
+        # Filter suppliers
         self.fields['supplier'].queryset = Party.objects.filter(
             Q(party_type='SUPPLIER') | Q(party_type='BOTH'),
             is_deleted=False
         )
-        self.fields['expense_ledger'].queryset = LedgerAccount.objects.filter(account_type='EXPENSE', is_deleted=False)
-        self.fields['stock_ledger'].queryset = LedgerAccount.objects.filter(account_type='ASSET', is_deleted=False)
+
+        # Filter ledger accounts by user (or show all if no user context)
+        if user:
+            self.fields['expense_ledger'].queryset = LedgerAccount.objects.filter(
+                user=user,
+                account_type='EXPENSE',
+                is_deleted=False
+            )
+            self.fields['stock_ledger'].queryset = LedgerAccount.objects.filter(
+                user=user,
+                account_type='ASSET',
+                is_deleted=False
+            )
+        else:
+            # Fallback: Show system-ledgers or common ledgers
+            self.fields['expense_ledger'].queryset = LedgerAccount.objects.filter(
+                account_type='EXPENSE',
+                is_deleted=False
+            )[:50]  # Limit to prevent performance issues
+            self.fields['stock_ledger'].queryset = LedgerAccount.objects.filter(
+                account_type='ASSET',
+                is_deleted=False
+            )[:50]
 
     def clean_invoice_date(self):
         invoice_date = self.cleaned_data.get('invoice_date')
@@ -153,8 +183,10 @@ class PurchaseInvoiceForm(forms.ModelForm):
             fy = get_fiscal_year()
             start_date, end_date = get_fy_range(fy)
             if invoice_date < start_date or invoice_date > end_date:
-                raise ValidationError(f"Invoice date must be within the current financial year ({fy}).")
+                raise ValidationError(
+                    f"Invoice date must be within the current financial year ({fy}).")
         return invoice_date
+
 
 PurchaseInvoiceItemFormSet = inlineformset_factory(
     PurchaseInvoice, PurchaseInvoiceItem,
@@ -167,12 +199,13 @@ PurchaseInvoiceItemFormSet = inlineformset_factory(
     can_delete=True
 )
 
+
 class PaymentEntryForm(forms.ModelForm):
     class Meta:
         model = PaymentEntry
         fields = [
-            'payment_no', 'payment_date', 'party', 'payment_type', 
-            'payment_mode', 'bank_account', 'cheque_no', 'utr_no', 
+            'payment_no', 'payment_date', 'party', 'payment_type',
+            'payment_mode', 'bank_account', 'cheque_no', 'utr_no',
             'total_amount', 'narration'
         ]
         widgets = {
@@ -187,7 +220,8 @@ class PaymentEntryForm(forms.ModelForm):
         self.fields['party'].queryset = Party.objects.filter(is_deleted=False)
         self.fields['bank_account'].queryset = LedgerAccount.objects.filter(
             Q(account_type='ASSET') &
-            (Q(name__icontains='Bank') | Q(name__icontains='Cash') | Q(account_code__startswith='BANK') | Q(account_code__startswith='CASH'))
+            (Q(name__icontains='Bank') | Q(name__icontains='Cash') | Q(
+                account_code__startswith='BANK') | Q(account_code__startswith='CASH'))
         )
 
     def clean_payment_date(self):
@@ -196,5 +230,6 @@ class PaymentEntryForm(forms.ModelForm):
             fy = get_fiscal_year()
             start_date, end_date = get_fy_range(fy)
             if payment_date < start_date or payment_date > end_date:
-                raise ValidationError(f"Payment date must be within the current financial year ({fy}).")
+                raise ValidationError(
+                    f"Payment date must be within the current financial year ({fy}).")
         return payment_date

@@ -20,7 +20,7 @@ urlpatterns = [
 
     # Home - redirect based on authentication
     path('', home_redirect_view, name='index'),
-    
+
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('parties/', PartyListView.as_view(), name='party-list'),
     path('parties/add/', PartyCreateView.as_view(), name='party-add'),
