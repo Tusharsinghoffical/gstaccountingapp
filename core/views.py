@@ -33,12 +33,33 @@ import tempfile
 import os
 
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import get_user_model
+
+
+class CustomLoginView(auth_views.LoginView):
+    """
+    Custom login view that redirects already logged-in users to dashboard.
+    New users are shown the login form.
+    """
+    template_name = 'registration/login.html'
+    
+    def dispatch(self, request, *args, **kwargs):
+        # If user is already authenticated, redirect to dashboard
+        if request.user.is_authenticated:
+            return redirect('index')
+        return super().dispatch(request, *args, **kwargs)
 
 
 class SignUpView(CreateView):
     form_class = UserCreationForm
     success_url = reverse_lazy('login')
     template_name = 'registration/signup.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        # If user is already authenticated, redirect to dashboard
+        if request.user.is_authenticated:
+            return redirect('index')
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         user = form.save()

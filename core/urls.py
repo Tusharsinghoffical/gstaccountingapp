@@ -8,12 +8,12 @@ from .views import (
     PaymentListView, PaymentCreateView, PaymentPDFView,
     ReportIndexView, PartyLedgerView, OutstandingView, AgeingReportView, GSTReportView,
     CashBankBookView, TDSReportView, UserSettingsView,
-    SignUpView, UserCreateView, UserUpdateView, UserToggleActiveView
+    SignUpView, UserCreateView, UserUpdateView, UserToggleActiveView, CustomLoginView
 )
 
 urlpatterns = [
     # Auth URLs
-    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('signup/', SignUpView.as_view(), name='signup'),
 
