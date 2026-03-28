@@ -154,6 +154,10 @@ class PurchaseInvoiceForm(forms.ModelForm):
             is_deleted=False
         )
 
+        # Make ledger fields optional (not required)
+        self.fields['expense_ledger'].required = False
+        self.fields['stock_ledger'].required = False
+
         # Filter ledger accounts by user (or show all if no user context)
         if user:
             self.fields['expense_ledger'].queryset = LedgerAccount.objects.filter(

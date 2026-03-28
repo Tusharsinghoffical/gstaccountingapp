@@ -164,7 +164,10 @@
                             <div class="relative">
                                 {{ form.expense_ledger }}
                                 <p class="text-[9px] font-bold text-slate-400 mt-1">Select expense head for this purchase</p>
+                                {{ form.expense_ledger.errors }}
                             </div>
+                            <!-- Hidden stock ledger (not always needed) -->
+                            <input type="hidden" name="stock_ledger" value="">
                         </div>
                         <div class="space-y-2">
                             <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</label>
