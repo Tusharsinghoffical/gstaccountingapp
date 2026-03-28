@@ -12,3 +12,4 @@ chardet
 charset-normalizer
 reportlab
 pypdf
+django-environ
