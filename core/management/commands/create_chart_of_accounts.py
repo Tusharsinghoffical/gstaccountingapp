@@ -8,20 +8,20 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         users = User.objects.all()
-        
+
         if not users:
             self.stdout.write(self.style.WARNING('No users found'))
             return
-        
+
         system_accounts = [
             # Assets
             ('Cash', 'CASH001', 'ASSET', 'DR'),
             ('Bank', 'BANK001', 'ASSET', 'DR'),
-            
+
             # Income
             ('Sales', 'SALE001', 'INCOME', 'CR'),
             ('Service Income', 'SINC001', 'INCOME', 'CR'),
-            
+
             # Expenses
             ('Purchase', 'PURC001', 'EXPENSE', 'DR'),
             ('Office Expenses', 'OFFE001', 'EXPENSE', 'DR'),
@@ -37,7 +37,7 @@ class Command(BaseCommand):
             ('Repairs & Maintenance', 'RAMA001', 'EXPENSE', 'DR'),
             ('Insurance', 'INSU001', 'EXPENSE', 'DR'),
             ('Depreciation', 'DEPR001', 'EXPENSE', 'DR'),
-            
+
             # GST Liabilities
             ('CGST Output', 'CGSTO001', 'LIABILITY', 'CR'),
             ('SGST Output', 'SGSTO001', 'LIABILITY', 'CR'),
@@ -45,20 +45,21 @@ class Command(BaseCommand):
             ('CGST Input', 'CGSTI001', 'ASSET', 'DR'),
             ('SGST Input', 'SGSTI001', 'ASSET', 'DR'),
             ('IGST Input', 'IGSTI001', 'ASSET', 'DR'),
-            
+
             # TDS
             ('TDS Receivable', 'TDSR001', 'ASSET', 'DR'),
             ('TDS Payable', 'TDSP001', 'LIABILITY', 'CR'),
         ]
-        
+
         total_created = 0
-        
+
         for user in users:
             user_ledger_count = LedgerAccount.objects.filter(user=user).count()
-            
+
             if user_ledger_count == 0:
-                self.stdout.write(f'Creating chart of accounts for {user.username}...')
-                
+                self.stdout.write(
+                    f'Creating chart of accounts for {user.username}...')
+
                 for name, code, acc_type, bal_type in system_accounts:
                     # Check if this code exists for THIS user
                     if not LedgerAccount.objects.filter(user=user, account_code=code).exists():
@@ -71,7 +72,7 @@ class Command(BaseCommand):
                             is_system=True
                         )
                         total_created += 1
-                
+
                 self.stdout.write(self.style.SUCCESS(
                     f'  ✓ Created {len(system_accounts)} ledger accounts for {user.username}'
                 ))
@@ -79,16 +80,19 @@ class Command(BaseCommand):
                 # Check if essential accounts exist
                 essential_codes = ['PURC001', 'CASH001', 'BANK001', 'SALE001']
                 existing_codes = list(LedgerAccount.objects.filter(
-                    user=user, 
+                    user=user,
                     account_code__in=essential_codes
                 ).values_list('account_code', flat=True))
-                
-                missing_codes = [c for c in essential_codes if c not in existing_codes]
-                
+
+                missing_codes = [
+                    c for c in essential_codes if c not in existing_codes]
+
                 if missing_codes:
-                    self.stdout.write(f'Adding missing accounts for {user.username}...')
+                    self.stdout.write(
+                        f'Adding missing accounts for {user.username}...')
                     for code in missing_codes:
-                        acc_data = next((acc for acc in system_accounts if acc[1] == code), None)
+                        acc_data = next(
+                            (acc for acc in system_accounts if acc[1] == code), None)
                         if acc_data:
                             # Check if exists for this user
                             if not LedgerAccount.objects.filter(user=user, account_code=code).exists():
@@ -101,7 +105,7 @@ class Command(BaseCommand):
                                     is_system=True
                                 )
                                 total_created += 1
-        
+
         self.stdout.write(self.style.SUCCESS(
             f'\n✅ Total ledger accounts created/updated: {total_created}'
         ))

@@ -163,6 +163,7 @@
                             <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ledger Account</label>
                             <div class="relative">
                                 {{ form.expense_ledger }}
+                                <p class="text-[9px] font-bold text-slate-400 mt-1">Select expense head for this purchase</p>
                             </div>
                         </div>
                         <div class="space-y-2">
@@ -458,6 +459,9 @@ function purchaseApp() {
                 this.addRow();
             }
 
+            // Auto-select Purchase ledger if available
+            this.autoSelectLedger();
+
             // Watch Select2
             $('#supplier-select').on('change', (e) => {
                 const state = $(e.target).find(':selected').data('state');
@@ -466,6 +470,19 @@ function purchaseApp() {
             });
 
             this.$watch('pos', () => this.recalculate());
+        },
+
+        autoSelectLedger() {
+            // Find and select "Purchase" ledger by default
+            const ledgerSelect = document.querySelector('select[name="expense_ledger"]');
+            if (ledgerSelect) {
+                for (let option of ledgerSelect.options) {
+                    if (option.text.toLowerCase().includes('purchase')) {
+                        ledgerSelect.value = option.value;
+                        break;
+                    }
+                }
+            }
         },
 
         addRow() {
