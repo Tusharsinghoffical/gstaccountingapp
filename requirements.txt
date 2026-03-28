@@ -16,3 +16,4 @@ django-environ
 django-select2
 django-cleanup
 pytesseract
+pdf2image
