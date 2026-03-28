@@ -36,6 +36,18 @@ import os
 
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
+from django.shortcuts import redirect
+
+
+def home_redirect_view(request):
+    """
+    Redirect unauthenticated users to login,
+    authenticated users to dashboard.
+    """
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    else:
+        return redirect('login')
 
 
 class CustomLoginView(auth_views.LoginView):

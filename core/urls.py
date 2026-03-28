@@ -8,7 +8,8 @@ from .views import (
     PaymentListView, PaymentCreateView, PaymentPDFView,
     ReportIndexView, PartyLedgerView, OutstandingView, AgeingReportView, GSTReportView,
     CashBankBookView, TDSReportView, UserSettingsView,
-    SignUpView, UserCreateView, UserUpdateView, UserToggleActiveView, CustomLoginView
+    SignUpView, UserCreateView, UserUpdateView, UserToggleActiveView, CustomLoginView,
+    home_redirect_view
 )
 
 urlpatterns = [
@@ -17,6 +18,9 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('signup/', SignUpView.as_view(), name='signup'),
 
+    # Home - redirect based on authentication
+    path('', home_redirect_view, name='index'),
+    
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('parties/', PartyListView.as_view(), name='party-list'),
     path('parties/add/', PartyCreateView.as_view(), name='party-add'),
