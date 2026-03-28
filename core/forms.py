@@ -159,7 +159,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
         self.fields['stock_ledger'].required = False
 
         # Filter ledger accounts by user (or show all if no user context)
-        if user:
+        if user and user.is_authenticated:
             self.fields['expense_ledger'].queryset = LedgerAccount.objects.filter(
                 user=user,
                 account_type='EXPENSE',
