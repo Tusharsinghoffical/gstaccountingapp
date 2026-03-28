@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; font-size: 10px; color: #333; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3B82F6; padding-bottom: 10px; }
+        .company-name { font-size: 18px; font-weight: bold; color: #0F172A; }
+        .report-title { font-size: 14px; font-weight: bold; margin-top: 5px; color: #3B82F6; }
+        .filters { margin-bottom: 20px; color: #666; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background-color: #F8FAFC; color: #475569; font-weight: bold; text-transform: uppercase; padding: 10px; border: 1px solid #E2E8F0; }
+        td { padding: 8px; border: 1px solid #E2E8F0; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        .dr { color: #059669; }
+        .cr { color: #DC2626; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 8px; color: #94A3B8; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company-name">{{ company.company_name }}</div>
+        <div>{{ company.address }}, {{ company.state }} - {{ company.pin_code }}</div>
+        <div>GSTIN: {{ company.gst_no }}</div>
+        <div class="report-title">PARTY LEDGER STATEMENT</div>
+    </div>
+
+    <div class="filters">
+        <strong>Party:</strong> {{ party.name }} <br>
+        <strong>Period:</strong> {{ request.GET.from_date|default:"All" }} to {{ request.GET.to_date|default:"Present" }}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Particulars</th>
+                <th>Voucher No</th>
+                <th class="text-right">Debit</th>
+                <th class="text-right">Credit</th>
+                <th class="text-right">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.entry.date }}</td>
+                <td>{{ item.entry.description }}</td>
+                <td>{{ item.entry.reference_no }}</td>
+                <td class="text-right">{% if item.debit > 0 %}{{ item.debit|floatformat:2 }}{% else %}-{% endif %}</td>
+                <td class="text-right">{% if item.credit > 0 %}{{ item.credit|floatformat:2 }}{% else %}-{% endif %}</td>
+                <td class="text-right font-bold {% if item.running_balance >= 0 %}dr{% else %}cr{% endif %}">
+                    {{ item.abs_balance|floatformat:2 }} {% if item.running_balance >= 0 %}DR{% else %}CR{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Generated on {% now "Y-m-d H:i" %} | Page <span class="page"></span>
+    </div>
+</body>
+</html>

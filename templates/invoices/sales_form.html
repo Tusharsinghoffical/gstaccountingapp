@@ -1,0 +1,540 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Sales Invoice - GST Accounting{% endblock %}
+
+{% block extra_head %}
+<!-- Select2 -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+    .select2-container--default .select2-selection--single {
+        border-radius: 0.75rem;
+        height: 48px;
+        border-color: #E2E8F0;
+        display: flex;
+        align-items: center;
+        padding-left: 0.5rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 46px;
+    }
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'invoice-list' %}" class="text-slate-400 hover:text-accent transition-colors">Invoices</a>
+<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+</svg>
+<span class="text-slate-800 font-medium">{% if form.instance.pk %}Edit{% else %}Draft{% endif %} Invoice</span>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="invoice-form" x-data="invoiceApp()" x-init="initData()" @submit="handleSubmit($event)" x-cloak>
+    {% csrf_token %}
+    
+    <!-- Global Error Display -->
+    {% if form.errors or items.errors %}
+    <div class="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-start gap-4 animate-shake">
+        <div class="p-2 bg-red-100 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+        <div>
+            <h3 class="text-sm font-black text-red-900 uppercase tracking-widest mb-2">Form Validation Failed</h3>
+            <ul class="text-xs text-red-700 space-y-1 list-disc list-inside font-medium leading-relaxed">
+                {% for field, errors in form.errors.items %}
+                    <li><strong>{{ field|title }}:</strong> {{ errors|striptags }}</li>
+                {% endfor %}
+                {% for error in items.non_form_errors %}
+                    <li><strong>Items:</strong> {{ error }}</li>
+                {% endfor %}
+                {% for form_item in items %}
+                   {% if form_item.errors %}
+                       {% for field, errors in form_item.errors.items %}
+                           <li><strong>Row {{ forloop.parentloop.counter }}:</strong> {{ field|title }} - {{ errors|striptags }}</li>
+                       {% endfor %}
+                   {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Main Content Area (Left) -->
+        <div class="flex-grow w-full lg:w-3/4 space-y-6">
+            
+            <!-- Quick Info Bar (Desktop) / Header (Mobile) -->
+            <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 shadow-slate-200/50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Document Number</label>
+                        <div class="relative group">
+                            <input type="text" name="invoice_no" value="{{ form.invoice_no.value|default:'' }}" required 
+                                   class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all font-mono font-bold text-slate-700 bg-slate-50/50 group-hover:bg-white">
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Billing Date</label>
+                        <input type="date" name="invoice_date" value="{{ form.invoice_date.value|date:'Y-m-d'|default:'' }}" required 
+                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all text-slate-700">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Due Date (Optional)</label>
+                        <input type="date" name="due_date" value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}" 
+                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all text-slate-700">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-8 border-t border-slate-50">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer / Debtor</label>
+                        <select name="party" id="party-select" required class="select2 w-full">
+                             {% for party in form.fields.party.queryset %}
+                                <option value="{{ party.id }}" {% if form.party.value == party.id %}selected{% endif %} data-gst="{{ party.gstin }}" data-state="{{ party.state }}">
+                                    {{ party.name }} • {{ party.city }}
+                                </option>
+                             {% endfor %}
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Place of Supply (State)</label>
+                        <select name="place_of_supply" x-model="pos" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all font-medium text-slate-700 appearance-none bg-white cursor-pointer">
+                            {% for code, name in form.fields.place_of_supply.choices %}
+                                <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items Section -->
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden shadow-slate-200/50">
+                <div class="p-6 md:px-8 md:py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">Line Items Details</h2>
+                    <span class="text-[10px] font-bold text-slate-500 bg-slate-200/50 px-2 py-1 rounded" x-text="`${rows.length} Items Listed`"></span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <!-- Management Form for Django -->
+                    {{ items.management_form }}
+                    
+                    <table class="w-full text-left border-collapse min-w-[800px] hidden md:table">
+                        <thead class="bg-slate-50/50">
+                            <tr>
+                                <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider w-5/12">Product / Service Description</th>
+                                <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-32">Qty & Rate</th>
+                                <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-32">Taxable</th>
+                                <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-28">GST %</th>
+                                <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-40">Total</th>
+                                <th class="px-4 py-4 w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            <template x-for="(item, index) in rows" :key="index">
+                                <tr class="hover:bg-slate-50/80 transition-all group">
+                                    <td class="px-8 py-5">
+                                        <input type="hidden" :name="`items-${index}-id`" :value="item.id">
+                                        <input type="text" :name="`items-${index}-description`" x-model="item.description" required 
+                                               class="w-full text-sm font-bold text-slate-800 border-none bg-transparent p-0 focus:ring-0 placeholder-slate-300" placeholder="Type product name...">
+                                        <input type="text" :name="`items-${index}-hsn_sac`" x-model="item.hsn" 
+                                               class="w-full text-[10px] text-slate-400 border-none bg-transparent p-0 mt-1 focus:ring-0 placeholder-slate-300 font-mono tracking-tighter" placeholder="HSN/SAC CODE">
+                                    </td>
+                                    <td class="px-4 py-5">
+                                        <div class="flex items-center gap-2 justify-center">
+                                            <input type="number" :name="`items-${index}-quantity`" x-model.number="item.qty" @input="updateLine(index)" step="0.01" 
+                                                   class="w-14 text-xs font-bold text-center bg-slate-100/50 rounded-lg py-1.5 border-transparent focus:bg-white focus:border-accent/30 focus:ring-4 focus:ring-accent/5 outline-none transition-all">
+                                            <span class="text-slate-300 text-[10px]">×</span>
+                                            <input type="number" :name="`items-${index}-rate`" x-model.number="item.rate" @input="updateLine(index)" step="0.01" 
+                                                   class="w-16 text-xs font-bold text-center bg-slate-100/50 rounded-lg py-1.5 border-transparent focus:bg-white focus:border-accent/30 focus:ring-4 focus:ring-accent/5 outline-none transition-all">
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-5 text-center">
+                                        <span class="text-xs font-black text-slate-600 font-mono" font-mono" x-text="formatCurrency(item.taxable)"></span>
+                                        <input type="hidden" :name="`items-${index}-taxable_amount`" :value="item.taxable">
+                                    </td>
+                                    <td class="px-4 py-5 text-center">
+                                        <select :name="`items-${index}-gst_percent`" x-model.number="item.gst_p" @change="updateLine(index)" 
+                                                class="text-[11px] font-black bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:ring-4 focus:ring-accent/5 outline-none transition-all cursor-pointer">
+                                            <option value="0">0%</option>
+                                            <option value="5">5%</option>
+                                            <option value="12">12%</option>
+                                            <option value="18" selected>18%</option>
+                                            <option value="28">28%</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-8 py-5 text-right font-black text-slate-900 font-mono">
+                                        <span x-text="formatCurrency(item.total)"></span>
+                                        <!-- Hidden fields for Django formset validation -->
+                                        <input type="hidden" :name="`items-${index}-id`" :value="item.id">
+                                        <input type="hidden" :name="`items-${index}-taxable_amount`" :value="item.taxable">
+                                        <input type="hidden" :name="`items-${index}-cgst_amount`" :value="item.cgst">
+                                        <input type="hidden" :name="`items-${index}-sgst_amount`" :value="item.sgst">
+                                        <input type="hidden" :name="`items-${index}-igst_amount`" :value="item.igst">
+                                        <input type="hidden" :name="`items-${index}-line_total`" :value="item.total">
+                                        <input type="hidden" :name="`items-${index}-tds_amount`" :value="item.tds_amt || 0">
+                                        <input type="hidden" :name="`items-${index}-tds_percent`" value="0">
+                                    </td>
+                                    <td class="px-4 py-5 text-center">
+                                        <button type="button" @click="removeRow(index)" class="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+
+                    <!-- Mobile Card Layout -->
+                    <div class="md:hidden divide-y divide-slate-100">
+                        <template x-for="(item, index) in rows" :key="index">
+                            <div class="p-6 space-y-4 bg-white active:bg-slate-50 transition-colors">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-grow">
+                                        <input type="hidden" :name="`items-${index}-id`" :value="item.id">
+                                        <input type="text" :name="`items-${index}-description`" x-model="item.description" required 
+                                               class="w-full text-base font-bold text-slate-800 border-none bg-transparent p-0 focus:ring-0 placeholder-slate-300" placeholder="Product name...">
+                                        <input type="text" :name="`items-${index}-hsn_sac`" x-model="item.hsn" 
+                                               class="w-full text-xs text-slate-400 border-none bg-transparent p-0 focus:ring-0 placeholder-slate-300 font-mono" placeholder="HSN/SAC CODE">
+                                    </div>
+                                    <button type="button" @click="removeRow(index)" class="p-2 text-red-500 bg-red-50 rounded-xl">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] font-black text-slate-400 uppercase">Qty & Rate</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="number" :name="`items-${index}-quantity`" x-model.number="item.qty" @input="updateLine(index)" step="0.01" class="w-full text-xs font-bold p-2 bg-slate-100 rounded-lg border-none focus:ring-2 focus:ring-accent/20">
+                                            <input type="number" :name="`items-${index}-rate`" x-model.number="item.rate" @input="updateLine(index)" step="0.01" class="w-full text-xs font-bold p-2 bg-slate-100 rounded-lg border-none focus:ring-2 focus:ring-accent/20">
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] font-black text-slate-400 uppercase text-center w-full block">Tax %</label>
+                                        <select :name="`items-${index}-gst_percent`" x-model.number="item.gst_p" @change="updateLine(index)" class="w-full text-xs font-bold p-2 bg-slate-100 rounded-lg border-none focus:ring-2 focus:ring-accent/20">
+                                            <option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-50">
+                                    <div class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Total Amount</div>
+                                    <div class="text-lg font-black text-slate-900 font-mono" x-text="formatCurrency(item.total)"></div>
+                                    <!-- Hidden fields for Django formset validation -->
+                                    <input type="hidden" :name="`items-${index}-taxable_amount`" :value="item.taxable">
+                                    <input type="hidden" :name="`items-${index}-cgst_amount`" :value="item.cgst">
+                                    <input type="hidden" :name="`items-${index}-sgst_amount`" :value="item.sgst">
+                                    <input type="hidden" :name="`items-${index}-igst_amount`" :value="item.igst">
+                                    <input type="hidden" :name="`items-${index}-line_total`" :value="item.total">
+                                    <input type="hidden" :name="`items-${index}-tds_amount`" :value="item.tds_amt || 0">
+                                    <input type="hidden" :name="`items-${index}-tds_percent`" value="0">
+                                    <input type="hidden" :name="`items-${index}-gst_percent`" :value="item.gst_p">
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="p-8 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-slate-100">
+                    <button type="button" @click="addRow()" class="group inline-flex items-center gap-3 bg-white hover:bg-accent text-accent hover:text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-slate-200 shadow-sm hover:shadow-accent/25 hover:-translate-y-0.5 shadow-slate-200/50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform group-hover:rotate-180 transition-transform duration-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        Add Another Line
+                    </button>
+                    <div class="hidden md:flex flex-col items-end">
+                        <span class="text-[10px] font-black text-slate-400 uppercase">Financial Summary</span>
+                        <div class="text-xs text-slate-500 font-medium">Automatic calculation enabled</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Meta -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm shadow-slate-200/50">
+                    <div class="flex items-center gap-3 pb-4 border-b border-slate-50">
+                        <div class="p-2 bg-slate-50 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg></div>
+                        <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Internal Remarks</h3>
+                    </div>
+                    <textarea name="narration" rows="3" class="w-full px-4 py-3 rounded-xl border border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all placeholder-slate-300 text-sm" placeholder="Any private notes or internal payment terms...">{{ form.narration.value|default:'' }}</textarea>
+                </div>
+                <div class="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm shadow-slate-200/50">
+                    <div class="flex items-center gap-3 pb-4 border-b border-slate-50">
+                        <div class="p-2 bg-slate-50 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                        <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Metadata</h3>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <label class="absolute -top-2 left-3 bg-white px-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Status</label>
+                            <select name="status" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all appearance-none cursor-pointer text-sm font-bold text-slate-700">
+                                <option value="DRAFT" {% if form.status.value == 'DRAFT' %}selected{% endif %}>Draft (Pro-forma)</option>
+                                <option value="SENT" {% if form.status.value == 'SENT' %}selected{% endif %}>Issued (Sent)</option>
+                                <option value="PAID" {% if form.status.value == 'PAID' %}selected{% endif %}>Completed (Paid)</option>
+                            </select>
+                        </div>
+                        <div class="relative">
+                             <label class="absolute -top-2 left-3 bg-white px-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Ref / PO No</label>
+                             <input type="text" name="reference_no" value="{{ form.reference_no.value|default:'' }}" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all font-mono text-xs" placeholder="PO-12345">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Summary (Right) -->
+        <div class="w-full lg:w-1/4 space-y-6 lg:sticky lg:top-24">
+            <div x-show="rows.length > 0" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+                 class="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl shadow-slate-900/40 text-white group overflow-hidden relative">
+                
+                <!-- Background Decoration -->
+                <div class="absolute -right-12 -top-12 w-48 h-48 bg-accent/20 rounded-full blur-3xl group-hover:bg-accent/30 transition-all duration-700"></div>
+                
+                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-8 border-b border-slate-800 pb-4 relative">Financial Snapshot</h3>
+                
+                <div class="space-y-6 relative">
+                    <div class="flex justify-between items-center group/item hover:translate-x-1 transition-transform">
+                        <span class="text-xs text-slate-400 font-medium">Sub Total</span>
+                        <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.taxable)"></span>
+                        <input type="hidden" name="total_taxable" :value="summary.taxable">
+                    </div>
+
+                    <template x-if="isIGST">
+                        <div class="flex justify-between items-center text-blue-400 hover:translate-x-1 transition-transform">
+                            <span class="text-xs font-bold uppercase tracking-tighter">IGST (18%)</span>
+                            <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.igst)"></span>
+                            <input type="hidden" name="total_igst" :value="summary.igst">
+                            <input type="hidden" name="total_cgst" value="0">
+                            <input type="hidden" name="total_sgst" value="0">
+                        </div>
+                    </template>
+                    
+                    <template x-if="!isIGST">
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center text-indigo-400 hover:translate-x-1 transition-transform">
+                                <span class="text-xs font-bold uppercase tracking-tighter">CGST</span>
+                                <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.cgst)"></span>
+                                <input type="hidden" name="total_cgst" :value="summary.cgst">
+                            </div>
+                            <div class="flex justify-between items-center text-indigo-400 hover:translate-x-1 transition-transform">
+                                <span class="text-xs font-bold uppercase tracking-tighter">SGST</span>
+                                <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.sgst)"></span>
+                                <input type="hidden" name="total_sgst" :value="summary.sgst">
+                                <input type="hidden" name="total_igst" value="0">
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- TDS Component -->
+                    <div class="pt-6 mt-6 border-t border-slate-800 space-y-4">
+                        <div class="flex justify-between items-end">
+                            <div class="flex-grow">
+                                 <label class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Withholding Tax (TDS)</label>
+                                 <select name="tds_section" x-model="tds_sec" class="w-full bg-slate-800 text-[10px] font-bold p-1 border-none rounded-lg focus:ring-2 focus:ring-accent transition-all text-slate-300">
+                                     <option value="">None applied</option>
+                                     <option value="194Q">194Q (0.1% Purchase)</option>
+                                     <option value="194C">194C (1% Contract)</option>
+                                     <option value="194J">194J (10% Prof.)</option>
+                                 </select>
+                            </div>
+                            <div class="text-right pl-4">
+                                 <div class="text-sm font-black text-rose-400 font-mono" x-text="`-${formatCurrency(summary.tds)}`"></div>
+                                 <input type="hidden" name="total_tds" :value="summary.tds">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Payable -->
+                    <div class="pt-8 mt-4 border-t-2 border-slate-800">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Receivable</div>
+                        <div class="text-3xl font-black text-white font-mono tracking-tighter group-hover:scale-105 transition-transform origin-left" x-text="formatCurrency(summary.net)"></div>
+                        <input type="hidden" name="net_amount" :value="summary.net">
+                    </div>
+
+                    <div class="pt-8 space-y-4">
+                        <button type="submit" class="w-full bg-accent hover:bg-blue-600 text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl shadow-accent/20 transition-all hover:shadow-accent/40 hover:-translate-y-1 active:scale-95 active:translate-y-0">
+                            Process & Finalize
+                        </button>
+                        <a href="{% url 'invoice-list' %}" class="block text-center w-full py-4 text-slate-500 font-black text-[10px] tracking-widest uppercase hover:text-slate-300 transition-colors">
+                            Discard Draft
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hint Card -->
+            <div class="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 hidden lg:block">
+                <div class="flex items-start gap-3">
+                    <div class="p-2 bg-white rounded-xl shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                    <div class="space-y-1">
+                        <p class="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Pro Tip</p>
+                        <p class="text-[11px] text-indigo-700 font-medium leading-relaxed">Changes to Place of Supply automatically toggle between IGST and CGST/SGST calculations.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Internal Flags -->
+    <input type="hidden" name="is_igst" :value="isIGST">
+</form>
+
+<script>
+$(document).ready(function() {
+    $('.select2').select2();
+    $('#party-select').on('change', function() {
+        const selected = $(this).find(':selected');
+        window.dispatchEvent(new CustomEvent('party-changed', {
+            detail: {
+                id: $(this).val(),
+                gst: selected.data('gst'),
+                state: selected.data('state')
+            }
+        }));
+    });
+});
+
+function invoiceApp() {
+    return {
+        isIGST: false,
+        pos: '{{ company.state|default:"DL" }}',
+        companyState: '{{ company.state|default:"DL" }}',
+        tds_sec: '{{ form.tds_section.value|default:"" }}',
+        rows: [],
+        summary: { taxable: 0, cgst: 0, sgst: 0, igst: 0, tds: 0, net: 0 },
+        
+        initData() {
+            // Populate rows from Django context
+            const existingRows = [
+                {% for item in items %}
+                    {
+                        id: '{{ item.instance.pk|default:"" }}',
+                        description: '{{ item.description.value|default:""|escapejs }}',
+                        hsn: '{{ item.hsn_sac.value|default:""|escapejs }}',
+                        qty: parseFloat('{{ item.quantity.value|default:"0" }}') || 0,
+                        rate: parseFloat('{{ item.rate.value|default:"0" }}') || 0,
+                        taxable: parseFloat('{{ item.taxable_amount.value|default:"0" }}') || 0,
+                        gst_p: parseInt('{{ item.gst_percent.value|default:"18" }}') || 18,
+                        tax_amt: 0, cgst: 0, sgst: 0, igst: 0, total: 0
+                    },
+                {% endfor %}
+            ];
+            
+            // If empty, add one empty row
+            if (existingRows.length === 0) {
+                this.addRow();
+            } else {
+                this.rows = existingRows;
+            }
+            
+            window.addEventListener('party-changed', (e) => {
+                const partyState = e.detail.state;
+                this.isIGST = (partyState !== this.companyState);
+                this.pos = partyState;
+                this.recalculateAll();
+            });
+            
+            this.$watch('tds_sec', () => this.recalculateAll());
+            this.$watch('pos', () => {
+                this.isIGST = (this.pos !== this.companyState);
+                this.recalculateAll();
+            });
+            
+            this.recalculateAll();
+        },
+        
+        addRow() {
+            this.rows.push({ id: '', description: '', hsn: '', qty: 0, rate: 0, taxable: 0, gst_p: 18, tax_amt: 0, cgst: 0, sgst: 0, igst: 0, total: 0 });
+            this.updateManagementForm();
+        },
+        
+        removeRow(index) {
+            if (this.rows.length > 1) {
+                this.rows.splice(index, 1);
+                this.recalculateAll();
+                this.updateManagementForm();
+            }
+        },
+        
+        updateLine(index) {
+            let item = this.rows[index];
+            const q = parseFloat(item.qty) || 0;
+            const r = parseFloat(item.rate) || 0;
+            item.taxable = Number((q * r).toFixed(2));
+            
+            const g = parseFloat(item.gst_p) || 0;
+            item.tax_amt = Number((item.taxable * (g / 100)).toFixed(2));
+            
+            if (this.isIGST) {
+                item.igst = item.tax_amt;
+                item.cgst = 0; item.sgst = 0;
+            } else {
+                item.cgst = Number((item.tax_amt / 2).toFixed(2));
+                item.sgst = Number((item.tax_amt / 2).toFixed(2));
+                item.igst = 0;
+            }
+            
+            item.total = Number((item.taxable + item.tax_amt).toFixed(2));
+            this.recalculateAll();
+        },
+        
+        recalculateAll() {
+            this.rows.forEach((row, i) => {
+                const q = parseFloat(row.qty) || 0;
+                const r = parseFloat(row.rate) || 0;
+                row.taxable = Number((q * r).toFixed(2));
+                
+                const g = parseFloat(row.gst_p) || 0;
+                row.tax_amt = Number((row.taxable * (g / 100)).toFixed(2));
+
+                if (this.isIGST) {
+                    row.igst = row.tax_amt;
+                    row.cgst = 0; row.sgst = 0;
+                } else {
+                    row.cgst = Number((row.tax_amt / 2).toFixed(2));
+                    row.sgst = Number((row.tax_amt / 2).toFixed(2));
+                    row.igst = 0;
+                }
+                row.total = Number((row.taxable + row.tax_amt).toFixed(2));
+            });
+
+            this.summary.taxable = Number(this.rows.reduce((sum, r) => sum + (parseFloat(r.taxable) || 0), 0).toFixed(2));
+            this.summary.cgst = Number(this.rows.reduce((sum, r) => sum + (parseFloat(r.cgst) || 0), 0).toFixed(2));
+            this.summary.sgst = Number(this.rows.reduce((sum, r) => sum + (parseFloat(r.sgst) || 0), 0).toFixed(2));
+            this.summary.igst = Number(this.rows.reduce((sum, r) => sum + (parseFloat(r.igst) || 0), 0).toFixed(2));
+            
+            let tds_p = 0;
+            if (this.tds_sec === '194Q') tds_p = 0.1;
+            else if (this.tds_sec === '194C') tds_p = 1;
+            else if (this.tds_sec === '194J') tds_p = 10;
+            
+            this.summary.tds = Number((this.summary.taxable * (tds_p / 100)).toFixed(2));
+            const totalTax = this.summary.cgst + this.summary.sgst + this.summary.igst;
+            this.summary.net = Number((this.summary.taxable + totalTax - this.summary.tds).toFixed(2));
+        },
+        
+        updateManagementForm() {
+            const el = document.getElementById('id_items-TOTAL_FORMS');
+            if (el) el.value = this.rows.length;
+        },
+        
+        formatCurrency(val) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            }).format(val || 0);
+        },
+        
+        handleSubmit(e) {
+            try {
+                console.log("Preparing submission...");
+                this.updateManagementForm();
+                this.recalculateAll();
+                console.log("Form data ready for POST");
+            } catch (err) {
+                console.error("Submit preparation failed:", err);
+                // The form will likely fail validation on backend anyway, 
+                // but we let it proceed to show Django errors if calculation fails.
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

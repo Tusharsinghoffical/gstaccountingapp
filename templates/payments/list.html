@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Payments - GST Accounting{% endblock %}
+
+{% block breadcrumbs %}
+<span class="text-slate-400">Daily Work</span>
+<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+</svg>
+<span class="text-slate-800">Payments</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Payments</h1>
+            <p class="text-slate-500 text-sm">Money in and money out.</p>
+        </div>
+        <a href="{% url 'payment-create' %}" class="w-full sm:w-auto justify-center inline-flex items-center gap-2 bg-accent hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            New Payment
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+        <div class="relative w-full">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </span>
+            <input type="text" placeholder="Search payments..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-100 focus:ring-2 focus:ring-accent outline-none text-sm">
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b border-slate-200 hidden md:table-header-group">
+                <tr>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pay No</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Party / Type</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Method</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Amount</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">PDF</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pmt in payments %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Receipt No</div>
+                        <span class="font-mono text-sm font-bold text-slate-700">{{ pmt.payment_no }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Party / Type</div>
+                        <div class="text-sm font-semibold text-slate-800">{{ pmt.party.name }}</div>
+                        <div class="text-[9px] text-slate-400 font-bold uppercase">{{ pmt.payment_type }}</div>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Date</div>
+                        <span class="text-sm text-slate-600">{{ pmt.payment_date|date:"D, d M Y" }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Method</div>
+                        <span class="text-sm text-slate-600">{{ pmt.payment_method }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Amount</div>
+                        <span class="text-sm font-bold text-slate-900 border-b-2 border-slate-100 md:border-0 pb-1 md:pb-0">₹{{ pmt.amount }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-end items-center mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mr-auto">Download</div>
+                        <a href="{% url 'payment-pdf' pmt.id %}" target="_blank" class="p-2 bg-slate-50 md:bg-transparent rounded-lg text-slate-400 hover:text-accent" title="Download Voucher">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1.5m1.5 0H13m-4 4h1.5m1.5 0H13m-4 4h1.5m1.5 0H13" /></svg>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-20 text-center text-slate-300">
+                        <p class="text-lg font-bold">No payments recorded yet.</p>
+                        <p class="text-sm mt-1">Start by clicking 'Record New Payment' above.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

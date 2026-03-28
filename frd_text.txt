@@ -1,0 +1,333 @@
+FRD – First-Time Setup & Invoicing / Payment Module
+1️⃣ Company Details – First-Time Setup
+Objective:Capture all critical company information during first-time software setup. This data will automatically be used in invoicing, GST/TDS compliance, reports, and audits.
+Mandatory: Users cannot access core software features until this step is completed.
+Company Details Form Fields:
+Field
+Type
+Mandatory
+Notes / Validation
+Company Name
+Text
+Yes
+Full legal name
+Establishment Date
+Date
+Yes
+DD-MM-YYYY
+CIN No
+Text
+No
+For Pvt / Ltd companies
+GST No
+Text
+Yes
+GSTIN (15 characters, regex validated)
+PAN No
+Text
+Yes
+Company PAN
+Address
+Text
+Yes
+Street / City / State
+State
+Dropdown
+Yes
+Used for GST / Place of Supply
+PIN / Zip
+Number
+Yes
+6-digit postal code
+Phone No
+Text/Number
+Yes
+Landline or Mobile
+Email ID
+Text
+Yes
+Valid email required
+User ID
+Text
+Yes
+First admin / superuser ID
+Password
+Password
+Yes
+Minimum 8 chars, letters + numbers, encrypted
+Confirm Password
+Password
+Yes
+Must match Password
+Logo / Brand
+File Upload
+No
+Optional for invoices / reports
+First-Time Setup Flow:
+User opens software / first login
+Check if company profile exists:
+Yes → Proceed to dashboard
+No → Show Company Details Form
+User fills mandatory details
+Validate data (GSTIN, PAN, Email, Password)
+Save company profile to database
+Show success message → Proceed to dashboard
+Outcome: Base configuration complete; company data auto-used in all reports and transactions.
+2️⃣ Invoicing & Payment Module
+Objective:
+Create Sales & Purchase invoices
+Ensure GST / TDS compliance
+Track party-wise outstanding balances
+Smart payment adjustment (against invoices, advances, settlement)
+New: Auto-create Purchase Invoice entries from PDF / photo upload
+2.1 Sales Invoice – Functional Requirements
+Party Details Section:
+Field
+Type
+Mandatory
+Logic
+Party Name
+Dropdown / Search
+Yes
+Fetched from ledger
+GSTIN
+Text
+Yes
+Auto from Party master
+PAN No
+Text
+Yes
+Auto from Party master
+State
+Dropdown
+Yes
+Auto from GSTIN
+Invoice No
+Text
+Yes
+Auto / Manual
+Invoice Date
+Date
+Yes
+Financial year validation
+Place of Supply
+Dropdown
+Yes
+Based on GST logic
+Item / Service Details Grid:
+Field
+Mandatory
+Logic
+Description
+Yes
+Item / Service
+HSN / SAC
+Yes
+GST classification
+Quantity
+Yes
+Numeric
+Rate
+Yes
+Per unit
+Taxable Amount
+Auto
+Quantity × Rate
+GST %
+Yes
+CGST / SGST / IGST
+GST Amount
+Auto
+Calculated from GST %
+TDS %
+Optional
+Based on party / section
+TDS Amount
+Auto
+Section-based
+Line Total
+Auto
+Final amount
+Summary Section (Auto-calculated):
+Total Taxable Value
+Total GST Amount
+Total TDS Amount
+Net Invoice Amount
+Additional Fields: Narration, Reference No (PO / Agreement), Due Date, Payment Terms
+Accounting Impact (Save Action):
+Party Account → Debit
+Sales Account → Credit
+GST Output → Credit
+TDS Receivable → Debit
+Payment Received → Auto-update Party Ledger
+2.2 Purchase Invoice – Functional Requirements
+Standard Fields: Same as Sales Invoice, plus:
+Field
+Type
+Mandatory
+Logic
+Supplier Name
+Dropdown / Search
+Yes
+Fetched from ledger
+RCM Applicable
+Yes/No
+Yes
+Auto-calculated
+ITC Eligible
+Yes/No
+Yes
+Auto-calculated
+Expense / Stock Ledger mapping
+Dropdown
+Yes
+Maps to ledger
+Accounting Impact (Save Action):
+Expense / Stock → Debit
+Input GST → Debit
+Supplier → Credit
+TDS Payable → Credit
+Payment Made → Auto-update Supplier Ledger
+2.3 Auto-Populate Purchase Invoice via PDF / Image Upload (New)
+Objective: Reduce manual entry by extracting invoice details automatically from PDF or photo uploads.
+Functional Requirements:
+Feature
+Type
+Mandatory
+Logic / Notes
+Upload Invoice
+File Upload
+Yes
+PDF, JPG, PNG; max 10 MB
+OCR / Data Extraction
+Automatic
+N/A
+Extract Supplier, GSTIN, PAN, Invoice No, Date, Items, HSN/SAC, Qty, Rate, GST %, TDS %, Total
+Auto-Populate Form
+Auto-Fill
+N/A
+Pre-fills Purchase Invoice form
+Validation
+Auto
+Yes
+GSTIN/PAN format, invoice date, unique invoice number
+Manual Review
+User
+Optional
+Highlighted fields editable before save
+Workflow:
+User uploads invoice PDF/image
+System performs OCR and extracts key fields
+Form is auto-populated with extracted data
+User reviews / edits if needed
+On Save, standard accounting entries are applied
+Validation Rules:
+Invoice number uniqueness
+Supplier GSTIN / PAN regex validation
+Financial year lock
+Negative balance check
+Integration Potential:
+AI-based OCR (Tesseract, Google Vision API)
+Bank / UPI integration for auto payment matching
+Future: Bulk invoice upload support
+2.4 Payment Entry – Functional Requirements
+Party Selection:
+Select Party → Fetch open invoices and outstanding balance
+Payment Type Options:
+Against Invoice (Sales / Purchase)
+Advance Payment
+On Account
+Settlement (Multiple invoices)
+Payment Details Section:
+Field
+Mandatory
+Payment Date
+Yes
+Mode (Cash / Bank / UPI)
+Yes
+Bank Account
+If Bank mode
+Cheque / UTR
+No (Optional)
+Narration
+Optional
+Accounting Impact:
+Scenario
+Accounting Entry
+Against Invoice
+Party → Credit, Bank/Cash → Debit, Invoice status → Paid / Part Paid, Payment Received / Made updated
+Advance Payment
+Party → Credit (Advance Ledger), Bank/Cash → Debit
+On Account
+Party → Credit, Bank/Cash → Debit
+Settlement
+Auto-adjust Party & Invoice Ledger
+2.5 Reports Impact (Auto Updated)
+Party Ledger (includes Payment Received for Sales & Payment Made for Purchase)
+Outstanding Report
+Ageing Report
+Cash / Bank Book
+GST & TDS Reports
+2.6 Validation Rules
+GSTIN format validation
+PAN validation
+Invoice number uniqueness
+Financial year lock
+Negative balance check
+2.7 User Roles
+Role
+Access
+Admin
+Full access (including auto-upload and validation)
+Accountant
+Entry & Edit
+Auditor
+Read-only
+3️⃣ Accounting Flow Charts (Simplified)
+Sales Invoice:
+Create Sales Invoice
+     |
+Enter Party, GSTIN, PAN, Items, GST, TDS, Amount
+     |
+System calculates Taxable, GST, TDS, Total
+     |
+Accounting Entries (Debit / Credit)
+     |
+Update Reports + Payment Received when payment recorded
+Purchase Invoice (Manual / Auto-Populated):
+Create Purchase Invoice
+     |
+Upload PDF/Image OR Enter Supplier, GSTIN, Items, Amount
+     |
+System calculates Taxable, GST, TDS, Total
+     |
+Accounting Entries (Debit / Credit)
+     |
+Update Reports + Payment Made when payment recorded
+Payment Entry:
+Payment Voucher Entry
+     |
+Select Party & Payment Type (Invoice / Advance / On Account / Settlement)
+     |
+Enter Payment Details
+     |
+Accounting Entries per scenario
+     |
+Update Reports + Auto-update Payment Received / Made
+4️⃣ Developer Notes
+Export GST Data → Excel (.xlsx / .csv)
+Filters: Date Range, Party Name, GSTIN / State, Invoice Type (Sales / Purchase)
+Auto Calculations:
+Taxable = Qty × Rate
+GST = Taxable × GST % / 100
+TDS = Taxable × TDS % / 100
+Total = Taxable + GST – TDS
+Payment Received / Made auto-updates ledger
+Excel formatting: Bold headers, numbers right-aligned, dates DD-MM-YYYY
+Optional: Conditional formatting for pending invoices
+OCR Integration: Auto-populate purchase invoice from uploaded PDFs / images
+Outcome:
+Fully GST / TDS compliant invoicing
+Reduced manual entry through auto-upload
+Accurate ledgers, reports, and party balances
+Streamlined payment reconciliation and reporting

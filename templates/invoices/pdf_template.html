@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ invoice.invoice_no }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+        body {
+            font-family: 'DejaVu Sans', sans-serif;
+            font-size: 10pt;
+            color: #333;
+            line-height: 1.4;
+        }
+        .header {
+            border-bottom: 2pt solid #0F172A;
+            padding-bottom: 10mm;
+            margin-bottom: 5mm;
+        }
+        .company-name {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #0F172A;
+        }
+        .invoice-title {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #3B82F6;
+            text-align: right;
+        }
+        .details-grid {
+            display: table;
+            width: 100%;
+            margin-bottom: 10mm;
+        }
+        .details-col {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .label {
+            font-weight: bold;
+            color: #64748B;
+            text-transform: uppercase;
+            font-size: 8pt;
+            margin-bottom: 1mm;
+        }
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5mm;
+        }
+        table.items th {
+            background-color: #F8FAFC;
+            border-bottom: 1pt solid #E2E8F0;
+            padding: 3mm;
+            font-size: 9pt;
+            text-align: left;
+        }
+        table.items td {
+            padding: 3mm;
+            border-bottom: 0.5pt solid #F1F5F9;
+            vertical-align: top;
+        }
+        .totals-table {
+            width: 60mm;
+            float: right;
+        }
+        .totals-table td {
+            padding: 2mm;
+            text-align: right;
+        }
+        .net-amount {
+            background-color: #0F172A;
+            color: white;
+            font-weight: bold;
+            padding: 3mm;
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            font-size: 8pt;
+            color: #94A3B8;
+            text-align: center;
+            border-top: 1pt solid #E2E8F0;
+            padding-top: 5mm;
+        }
+        .gst-summary {
+            margin-top: 10mm;
+            font-size: 9pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <table style="width: 100%;">
+            <tr>
+                <td>
+                    <div class="company-name">{{ company.company_name }}</div>
+                    <div>{{ company.address }}</div>
+                    <div>GSTIN: {{ company.gst_no }}</div>
+                </td>
+                <td class="invoice-title">TAX INVOICE</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="details-grid">
+        <div class="details-col">
+            <div class="label">Bill To:</div>
+            <div style="font-weight: bold; font-size: 11pt;">{{ invoice.party.name }}</div>
+            <div>{{ invoice.party.address }}</div>
+            <div>{{ invoice.party.city }}, {{ invoice.party.state }}</div>
+            <div>GSTIN: {{ invoice.party.gstin|default:"Unregistered" }}</div>
+        </div>
+        <div class="details-col" style="text-align: right;">
+            <div class="label">Invoice Details:</div>
+            <div><strong>Invoice No:</strong> {{ invoice.invoice_no }}</div>
+            <div><strong>Date:</strong> {{ invoice.invoice_date|date:"d M Y" }}</div>
+            <div><strong>Place of Supply:</strong> {{ invoice.place_of_supply }}</div>
+            <div><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y"|default:"Immediate" }}</div>
+        </div>
+    </div>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th style="width: 50%;">Description</th>
+                <th>HSN</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Rate</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice.items.all %}
+            <tr>
+                <td>{{ item.description }}</td>
+                <td>{{ item.hsn_sac|default:"---" }}</td>
+                <td style="text-align: center;">{{ item.quantity }}</td>
+                <td style="text-align: right;">{{ item.rate }}</td>
+                <td style="text-align: right;">{{ item.taxable_amount }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="overflow: hidden;">
+        <div style="float: left; width: 60%;">
+            <div class="label" style="margin-top: 5mm;">Amount in Words:</div>
+            <div style="font-style: italic;">{{ amount_in_words }} ONLY</div>
+            
+            <div class="gst-summary">
+                <div class="label">GST Summary:</div>
+                {% if invoice.is_igst %}
+                    <div>IGST Total: ₹{{ invoice.total_igst }}</div>
+                {% else %}
+                    <div>CGST: ₹{{ invoice.total_cgst }} | SGST: ₹{{ invoice.total_sgst }}</div>
+                {% endif %}
+                {% if invoice.total_tds > 0 %}
+                    <div>TDS Deducted: ₹{{ invoice.total_tds }}</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <table class="totals-table">
+            <tr>
+                <td style="color: #64748B;">Taxable Subtotal:</td>
+                <td style="font-weight: bold;">₹{{ invoice.total_taxable }}</td>
+            </tr>
+            <tr>
+                <td style="color: #64748B;">Total Tax:</td>
+                <td style="font-weight: bold;">₹{{ invoice.total_cgst|add:invoice.total_sgst|add:invoice.total_igst }}</td>
+            </tr>
+            {% if invoice.total_tds > 0 %}
+            <tr>
+                <td style="color: #64748B;">Total TDS (-):</td>
+                <td style="font-weight: bold; color: #EF4444;">₹{{ invoice.total_tds }}</td>
+            </tr>
+            {% endif %}
+            <tr class="net-amount">
+                <td style="text-align: left;">NET PAYABLE:</td>
+                <td>₹{{ invoice.net_amount }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="margin-top: 15mm;">
+        <div style="float: left; width: 50%;">
+            <div class="label">Terms & Conditions:</div>
+            <div style="font-size: 8pt; color: #64748B;">{{ invoice.payment_terms|default:"1. Interest @ 18% p.a. will be charged if payment is not made within due date." }}</div>
+        </div>
+        <div style="float: right; width: 40%; text-align: center; border-top: 1pt solid #E2E8F0; padding-top: 10mm; margin-top: 15mm;">
+            <div class="label">Authorised Signatory</div>
+            <div style="font-weight: bold;">For {{ company.company_name }}</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        This is a computer-generated document and does not require a physical signature.
+    </div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+Django>=4.2,<5.0
+gunicorn
+psycopg2-binary
+python-decouple
+whitenoise
+xhtml2pdf
+Pillow
+openpyxl
+num2words
+requests
+urllib3
+chardet
+charset-normalizer

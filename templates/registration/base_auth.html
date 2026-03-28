@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Auth | GST Accounting{% endblock %}</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-slate-50 text-slate-900 font-inter antialiased min-h-screen flex items-center justify-center p-6 sm:p-12">
+    <div class="w-full max-w-md">
+        <!-- Logo -->
+        <div class="mb-12 flex flex-col items-center">
+            <div class="w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-500/30 mb-6">
+                <span class="text-white font-black text-3xl tracking-tighter italic">GL</span>
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tightest">GST LEDGER</h1>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">Professional Edition</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] p-8 sm:p-12 border border-slate-100 relative overflow-hidden">
+            <!-- Decorative gradient line -->
+            <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-600 to-blue-500"></div>
+            
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</body>
+</html>

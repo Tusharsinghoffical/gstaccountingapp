@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}TDS Report - GST Accounting{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">TDS Report</h1>
+            <p class="text-slate-500 text-sm">Summary of TDS deductions.</p>
+        </div>
+        <a href="?export=excel" class="w-full sm:w-auto justify-center bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all text-sm shadow-md">Excel</a>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b hidden md:table-header-group">
+                <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <th class="px-6 py-4">Date</th>
+                    <th class="px-6 py-4">Party / PAN</th>
+                    <th class="px-6 py-4">Section</th>
+                    <th class="px-6 py-4 text-right">Taxable</th>
+                    <th class="px-6 py-4 text-right">TDS %</th>
+                    <th class="px-6 py-4 text-right">Amount</th>
+                    <th class="px-6 py-4">Bill No</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr class="border-b last:border-0 hover:bg-slate-50/50 flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Date</div>
+                        <span class="text-sm font-semibold text-slate-600">{{ item.date|date:"D, d M" }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Party / PAN</div>
+                        <p class="font-bold text-slate-800 text-sm">{{ item.party.name }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">{{ item.party.pan_no|default:"N/A" }}</p>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Section</div>
+                        <span class="uppercase font-bold text-blue-600 text-xs">{{ item.section }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Taxable</div>
+                        <span class="font-medium text-slate-600">₹{{ item.taxable }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">TDS %</div>
+                        <span class="font-medium text-slate-600">{{ item.percent }}%</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Amount</div>
+                        <span class="font-bold text-rose-600">₹{{ item.amount }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Bill No</div>
+                        <span class="text-slate-400 font-mono text-xs">{{ item.inv_no }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-6 py-10 text-center text-slate-400">No TDS transactions found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Purchase Invoices - GST Accounting{% endblock %}
+
+{% block breadcrumbs %}
+<span class="text-slate-400">Transactions</span>
+<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+</svg>
+<span class="text-slate-800">Purchase Invoices</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Purchases</h1>
+            <p class="text-slate-500 text-sm">Track bills and tax credits.</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <a href="{% url 'ocr-upload' %}" class="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Scan Bill
+            </a>
+            <a href="{% url 'purchase-create' %}" class="inline-flex items-center justify-center gap-2 bg-accent hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                New Bill
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+        <div class="relative w-full">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </span>
+            <input type="text" placeholder="Search bills..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-100 focus:ring-2 focus:ring-accent outline-none text-sm">
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b border-slate-200 hidden md:table-header-group">
+                <tr>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Bill No</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Supplier / GSTIN</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Amount</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Edit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invoices %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Bill No</div>
+                        <span class="font-mono text-sm font-bold text-slate-700">{{ inv.invoice_no }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Supplier / GSTIN</div>
+                        <div class="text-sm font-semibold text-slate-800">{{ inv.party.name }}</div>
+                        <div class="text-[10px] text-slate-400 font-mono">{{ inv.gstin|default:"No GSTIN" }}</div>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Date</div>
+                        <span class="text-sm text-slate-600">{{ inv.invoice_date|date:"D, d M Y" }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Amount</div>
+                        <span class="text-sm font-bold text-slate-900 pb-1 md:pb-0 border-b-2 border-slate-50 md:border-0">₹{{ inv.net_amount }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-end items-center mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mr-auto">Edit</div>
+                        <a href="{% url 'purchase-update' inv.id %}" class="p-2 bg-slate-50 md:bg-transparent rounded-lg text-slate-400 hover:text-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-20 text-center text-slate-300">
+                        <p class="text-lg font-bold">No purchase invoices recorded yet.</p>
+                        <p class="text-sm mt-1">Start by clicking 'Record Purchase' or use OCR scan.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

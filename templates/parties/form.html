@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Party - GST Accounting{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'party-list' %}" class="text-slate-400 hover:text-slate-600">Parties</a>
+<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+</svg>
+<span class="text-slate-800 font-bold">{% if form.instance.pk %}Edit{% else %}New{% endif %} Party</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto pb-24" x-data="partyForm('{{ form.instance.state|default:'DL' }}')">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight font-outfit uppercase">
+                {% if form.instance.pk %}Edit Party{% else %}Register New Party{% endif %}
+            </h1>
+            <p class="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">Configure customer or supplier profiles</p>
+        </div>
+        
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <a href="{% url 'party-list' %}" class="flex-1 sm:flex-none text-center px-6 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all">
+                Cancel
+            </a>
+            <button type="submit" form="party-form" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95">
+                Save Information
+            </button>
+        </div>
+    </div>
+
+    <form method="post" id="party-form" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {% csrf_token %}
+        
+        <!-- Left Panel: Identity & Contact -->
+        <div class="lg:col-span-8 space-y-8">
+            <!-- Basic Identity -->
+            <div class="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div class="p-8 border-b border-slate-50 flex items-center gap-3 bg-slate-50/50">
+                    <div class="w-2 h-8 bg-blue-600 rounded-full"></div>
+                    <h2 class="text-lg font-black text-slate-800 font-outfit uppercase tracking-tight">Business Identity</h2>
+                </div>
+                
+                <div class="p-8 space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Display Name *</label>
+                        {{ form.name }}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">GSTIN (Optional)</label>
+                            <div class="relative">
+                                <input type="text" name="gstin" x-model="gstin" @input="handleGSTIN()" value="{{ form.gstin.value|default:'' }}"
+                                       class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none uppercase" placeholder="22AAAAA0000A1Z5">
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">PAN Number</label>
+                            {{ form.pan_no }}
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Party Relationship Type *</label>
+                        <div class="grid grid-cols-3 gap-4">
+                            {% for choice in form.party_type %}
+                                {% if choice.data.value %}
+                                <label class="relative flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group"
+                                       :class="partyType === '{{ choice.data.value }}' ? 'border-blue-600 bg-blue-50/50 shadow-md' : 'border-slate-100 bg-slate-50 hover:border-slate-200'">
+                                    <input type="radio" name="{{ choice.data.name }}" value="{{ choice.data.value }}" x-model="partyType" class="hidden" {% if choice.data.selected %}checked{% endif %}>
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                                         :class="partyType === '{{ choice.data.value }}' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 shadow-sm'">
+                                        {% if choice.data.value == 'CUSTOMER' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                                        {% elif choice.data.value == 'SUPPLIER' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                        {% else %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-center" :class="partyType === '{{ choice.data.value }}' ? 'text-blue-700' : 'text-slate-500'">{{ choice.choice_label }}</span>
+                                </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Address & Contact -->
+            <div class="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div class="p-8 border-b border-slate-50 flex items-center gap-3 bg-slate-50/50">
+                    <div class="w-2 h-8 bg-indigo-600 rounded-full"></div>
+                    <h2 class="text-lg font-black text-slate-800 font-outfit uppercase tracking-tight">Location & Contact</h2>
+                </div>
+                
+                <div class="p-8 space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Street Address *</label>
+                        {{ form.address }}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">State/UT *</label>
+                            <select name="state" x-model="state" class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none appearance-none">
+                                {% for code, name in form.fields.state.choices %}
+                                    <option value="{{ code }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">City *</label>
+                            {{ form.city }}
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Pin Code *</label>
+                            {{ form.pin_code }}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Phone Number</label>
+                            {{ form.phone }}
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Email Address</label>
+                            {{ form.email }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Financials -->
+        <div class="lg:col-span-4 space-y-8">
+            <div class="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 p-8 space-y-8">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-black">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Opening Balance</h3>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Initial Amount</label>
+                        <div class="relative group">
+                            <span class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                            <input type="number" name="opening_balance" step="0.01" value="{{ form.opening_balance.value|default:'0.00' }}"
+                                   class="w-full pl-10 pr-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-black text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none">
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Balance Type</label>
+                        <div class="flex p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                            {% for code, name in form.fields.balance_type.choices %}
+                                <label class="flex-1 text-center py-3 rounded-xl cursor-pointer transition-all font-black text-[10px] uppercase tracking-widest"
+                                       :class="balanceType === '{{ code }}' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'">
+                                    <input type="radio" name="balance_type" value="{{ code }}" x-model="balanceType" class="hidden" {% if form.balance_type.value == code %}checked{% endif %}>
+                                    {{ name }}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-slate-50">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase leading-relaxed text-center italic">
+                        The opening balance is used for initial ledger accounting and financial history tracking.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Dashboard Preview / Info Card -->
+            <div class="bg-indigo-900 rounded-[32px] p-8 text-white space-y-6 shadow-2xl shadow-indigo-200">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center font-black text-xl italic border border-white/5">?</div>
+                    <div>
+                        <p class="text-sm font-black uppercase tracking-tight">Need Help?</p>
+                        <p class="text-indigo-300 text-[10px] font-bold uppercase tracking-widest">Party Configuration</p>
+                    </div>
+                </div>
+                <p class="text-xs text-indigo-100 font-bold leading-relaxed">
+                    Once registered, this party will be available in the Sales and Purchase modules for collaborative accounting.
+                </p>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function partyForm(initialState) {
+    const stateMap = {
+        '01': 'JK', '02': 'HP', '03': 'PB', '04': 'CH', '05': 'UT', '06': 'HR', '07': 'DL', '08': 'RJ', 
+        '09': 'UP', '10': 'BR', '11': 'SK', '12': 'AR', '13': 'NL', '14': 'MN', '15': 'MZ', '16': 'TR', 
+        '17': 'ML', '18': 'AS', '19': 'WB', '20': 'JH', '21': 'OR', '22': 'CT', '23': 'MP', '24': 'GJ', 
+        '27': 'MH', '29': 'KA', '30': 'GA', '31': 'LD', '32': 'KL', '33': 'TN', '34': 'PY', '35': 'AN', 
+        '36': 'TG', '37': 'AP', '38': 'LA', '97': 'OT'
+    };
+
+    return {
+        gstin: document.querySelector('input[name="gstin"]').value,
+        state: initialState || 'DL',
+        partyType: '{{ form.party_type.value|default:"CUSTOMER" }}',
+        balanceType: '{{ form.balance_type.value|default:"DR" }}',
+        
+        handleGSTIN() {
+            if (this.gstin.length >= 2) {
+                const code = this.gstin.substring(0, 2);
+                if (stateMap[code]) {
+                    this.state = stateMap[code];
+                }
+            }
+        }
+    }
+}
+</script>
+
+<style>
+/* Style Django form inputs to match the Premium UI theme */
+textarea, input[type="text"], input[type="email"], input[type="number"] {
+    width: 100%;
+    padding: 1rem 1.25rem !important;
+    border-radius: 1rem !important;
+    background-color: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    transition: all 0.2s !important;
+    outline: none !important;
+}
+
+textarea:focus, input:focus {
+    background-color: #FFFFFF !important;
+    border-color: #3B82F6 !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+}
+
+textarea { min-height: 100px; resize: none; }
+</style>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Party Ledger - GST Accounting{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Party Ledger</h1>
+            <p class="text-slate-500 text-sm">View all transactions for a party.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="?{{ request.GET.urlencode }}&export=pdf" class="flex-1 sm:flex-none justify-center bg-white border text-slate-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                PDF
+            </a>
+            <a href="?{{ request.GET.urlencode }}&export=excel" class="flex-1 sm:flex-none justify-center bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Party</label>
+                <select name="party" class="w-full px-4 py-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm">
+                    <option value="">Choose party...</option>
+                    {% for p in parties %}
+                        <option value="{{ p.id }}" {% if request.GET.party == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">From Date</label>
+                <input type="date" name="from_date" value="{{ request.GET.from_date }}" class="w-full px-4 py-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm">
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">To Date</label>
+                <input type="date" name="to_date" value="{{ request.GET.to_date }}" class="w-full px-4 py-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm">
+            </div>
+            <button type="submit" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors text-sm">Show Report</button>
+        </form>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 hidden md:table-header-group">
+                <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b">
+                    <th class="px-6 py-4">Date</th>
+                    <th class="px-6 py-4">Details</th>
+                    <th class="px-6 py-4 text-right">Out (Debit)</th>
+                    <th class="px-6 py-4 text-right">In (Credit)</th>
+                    <th class="px-6 py-4 text-right">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in ledger_items %}
+                <tr class="border-b last:border-0 hover:bg-slate-50/50 flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Date</div>
+                        <span class="text-sm font-semibold text-slate-600">{{ item.entry.date|date:"D, d M" }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Details</div>
+                        <p class="font-bold text-slate-800 text-sm">{{ item.entry.description }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">{{ item.entry.reference_no }}</p>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Debit</div>
+                        <span class="font-bold text-slate-700">{% if item.debit > 0 %}₹{{ item.debit }}{% else %}-{% endif %}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Credit</div>
+                        <span class="font-bold text-slate-700">{% if item.credit > 0 %}₹{{ item.credit }}{% else %}-{% endif %}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Balance</div>
+                        <span class="font-bold {% if item.running_balance >= 0 %}text-blue-600{% else %}text-rose-600{% endif %}">
+                            ₹{{ item.abs_balance }} {% if item.running_balance >= 0 %}DR{% else %}CR{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-20 text-center">
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </div>
+                            <p class="text-slate-400 font-medium">Select a party and date range to view ledger details.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

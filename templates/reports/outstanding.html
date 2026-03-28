@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Outstanding Report - GST Accounting{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Outstanding</h1>
+            <p class="text-slate-500 text-sm">Unpaid bills and late payments.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="?{{ request.GET.urlencode }}&export=excel" class="w-full sm:w-auto justify-center bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-md text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Due</p>
+            <p class="text-xl font-bold text-slate-900">₹<span id="summary-total">0.00</span></p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-rose-500">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Overdue</p>
+            <p class="text-xl font-bold text-rose-600">₹0.00</p>
+        </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Type</label>
+                <div class="flex bg-slate-50 p-1 rounded-xl">
+                    <button type="submit" name="type" value="SALES" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all {% if request.GET.type == 'SALES' or not request.GET.type %}bg-white text-blue-600 shadow-sm{% else %}text-slate-400{% endif %}">Receivable</button>
+                    <button type="submit" name="type" value="PURCHASE" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all {% if request.GET.type == 'PURCHASE' %}bg-white text-rose-500 shadow-sm{% else %}text-slate-400{% endif %}">Payable</button>
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">As on Date</label>
+                <input type="date" name="as_of" value="{{ request.GET.as_of }}" class="w-full px-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm">
+            </div>
+            <button type="submit" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all text-sm">Refresh</button>
+        </form>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 hidden md:table-header-group">
+                <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b">
+                    <th class="px-6 py-4">Party Name</th>
+                    <th class="px-6 py-4">Bill Details</th>
+                    <th class="px-6 py-4 text-right">Total</th>
+                    <th class="px-6 py-4 text-right">Due Amount</th>
+                    <th class="px-6 py-4 text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody id="outstanding-table-body">
+                {% for inv in invoices %}
+                <tr class="border-b last:border-0 hover:bg-slate-50/50 flex flex-col md:table-row p-4 md:p-0 {% if inv.days_overdue > 0 %}bg-rose-50/30{% endif %}">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Party</div>
+                        <span class="font-bold text-slate-800 text-sm">{{ inv.party.name|default:inv.supplier.name }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Bill</div>
+                        <p class="font-bold text-slate-700 text-sm">{{ inv.invoice_no }}</p>
+                        <p class="text-[10px] text-slate-400">Due: {{ inv.due_date|date:"d M Y" }}</p>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Total</div>
+                        <span class="font-medium text-slate-600 text-sm">₹{{ inv.net_amount }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Due</div>
+                        <span class="font-bold text-slate-900 text-sm">₹{{ inv.outstanding }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right md:text-center flex md:table-cell justify-between items-center mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Status</div>
+                        {% if inv.days_overdue > 0 %}
+                            <span class="px-2 py-0.5 bg-rose-100 text-rose-600 rounded text-[9px] font-bold uppercase">{{ inv.days_overdue }} DAYS LATE</span>
+                        {% else %}
+                            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded text-[9px] font-bold uppercase">ON TIME</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple total calculator
+    document.addEventListener('DOMContentLoaded', () => {
+        let total = 0;
+        document.querySelectorAll('#outstanding-table-body span.font-black').forEach(el => {
+            total += parseFloat(el.innerText.replace('₹', '') || 0);
+        });
+        document.getElementById('summary-total').innerText = total.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .voucher-type { font-size: 1.5em; font-weight: bold; margin-top: 20px; text-decoration: underline; }
+        .details { margin-top: 30px; }
+        .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .total-row { font-weight: bold; background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ company.company_name }}</h1>
+        <p>{{ company.address }}, {{ company.city }}, {{ company.state }} - {{ company.pin_code }}</p>
+        <p>GSTIN: {{ company.gst_no }} | PAN: {{ company.pan_no }}</p>
+    </div>
+
+    <div style="text-align: center;">
+        <div class="voucher-type">PAYMENT VOUCHER</div>
+    </div>
+
+    <table class="details">
+        <tr>
+            <td width="50%"><strong>Voucher No:</strong> {{ payment.payment_no }}</td>
+            <td width="50%"><strong>Date:</strong> {{ payment.payment_date|date:"d/m/Y" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Paid To:</strong> {{ payment.party.name }}</td>
+            <td><strong>Payment Mode:</strong> {{ payment.payment_mode }}</td>
+        </tr>
+        {% if payment.utr_no %}
+        <tr>
+            <td><strong>Ref/UTR No:</strong> {{ payment.utr_no }}</td>
+            <td><strong>Bank Account:</strong> {{ payment.bank_account.name|default:"-" }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Description / Narration</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ payment.narration|default:"Payment towards outstanding" }}</td>
+                <td style="text-align: right;">₹{{ payment.total_amount }}</td>
+            </tr>
+            <tr class="total-row">
+                <td style="text-align: right;">Total Amount</td>
+                <td style="text-align: right;">₹{{ payment.total_amount }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="margin-top: 40px;">
+        <p><strong>Amount in Words:</strong> {{ payment.total_amount }} Only</p>
+    </div>
+
+    <div class="footer">
+        <div style="float: left; width: 30%; text-align: center; margin-top: 50px;">
+            <p style="border-top: 1px solid #000;">Prepared By</p>
+        </div>
+        <div style="float: right; width: 30%; text-align: center; margin-top: 50px;">
+            <p style="border-top: 1px solid #000;">Authorized Signatory</p>
+        </div>
+        <div style="clear: both;"></div>
+    </div>
+</body>
+</html>

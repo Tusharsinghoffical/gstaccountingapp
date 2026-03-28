@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}GST Report - GST Accounting{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ tab: 'gstr1' }">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">GST Reports</h1>
+            <p class="text-slate-500 text-sm">GSTR-1 and GSTR-2 summaries.</p>
+        </div>
+        <a href="?export=excel" class="w-full sm:w-auto justify-center bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all text-sm shadow-md">Excel</a>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm w-full sm:w-fit">
+        <button @click="tab = 'gstr1'" :class="tab === 'gstr1' ? 'bg-accent text-white shadow-lg' : 'text-slate-500'" class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-bold text-[10px] uppercase transition-all tracking-widest">GSTR-1 (Sales)</button>
+        <button @click="tab = 'gstr2'" :class="tab === 'gstr2' ? 'bg-accent text-white shadow-lg' : 'text-slate-500'" class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-bold text-[10px] uppercase transition-all tracking-widest">GSTR-2 (Purchase)</button>
+    </div>
+
+    <!-- GSTR-1 -->
+    <div x-show="tab === 'gstr1'" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b hidden md:table-header-group">
+                <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <th class="px-6 py-4">Bill No</th>
+                    <th class="px-6 py-4">Party</th>
+                    <th class="px-6 py-4">GSTIN</th>
+                    <th class="px-6 py-4 text-right">Taxable</th>
+                    <th class="px-6 py-4 text-right">CGST</th>
+                    <th class="px-6 py-4 text-right">SGST/IGST</th>
+                    <th class="px-6 py-4 text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in sales %}
+                <tr class="border-b last:border-0 hover:bg-slate-50/50 flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Bill No</div>
+                        <span class="font-bold text-slate-800 text-sm">{{ inv.invoice_no }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Party / GSTIN</div>
+                        <p class="font-bold text-slate-700 text-sm">{{ inv.party.name }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">{{ inv.gstin }}</p>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Taxable</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_taxable }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">CGST</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_cgst }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">SGST/IGST</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_sgst|add:inv.total_igst }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Total</div>
+                        <span class="font-bold text-slate-900">₹{{ inv.net_amount }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- GSTR-2 -->
+    <div x-show="tab === 'gstr2'" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm text-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b hidden md:table-header-group text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <tr>
+                    <th class="px-6 py-4">Bill No</th>
+                    <th class="px-6 py-4">Supplier</th>
+                    <th class="px-6 py-4">GSTIN</th>
+                    <th class="px-6 py-4 text-right">Taxable</th>
+                    <th class="px-6 py-4 text-right">CGST</th>
+                    <th class="px-6 py-4 text-right">SGST/IGST</th>
+                    <th class="px-6 py-4 text-center">ITC</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in purchases %}
+                <tr class="border-b last:border-0 hover:bg-slate-50/50 flex flex-col md:table-row p-4 md:p-0">
+                    <td class="md:px-6 md:py-4">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Bill No</div>
+                        <span class="font-bold text-slate-800 text-sm">{{ inv.invoice_no }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Supplier / GSTIN</div>
+                        <p class="font-bold text-slate-700 text-sm">{{ inv.supplier.name }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">{{ inv.gstin }}</p>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-3 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Taxable</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_taxable }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">CGST</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_cgst }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right flex md:table-cell justify-between items-center mt-1 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">SGST/IGST</div>
+                        <span class="font-medium text-slate-600">₹{{ inv.total_sgst|add:inv.total_igst }}</span>
+                    </td>
+                    <td class="md:px-6 md:py-4 text-right md:text-center flex md:table-cell justify-between items-center mt-2 md:mt-0">
+                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">ITC</div>
+                        {% if inv.itc_eligible %}<span class="px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded text-[9px] font-bold">YES</span>{% else %}<span class="text-slate-300">NO</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

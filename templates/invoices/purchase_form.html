@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Purchase Bill - GST Ledger{% endblock %}
+
+{% block extra_head %}
+<!-- Select2 styling for premium look -->
+<style>
+    .select2-container--default .select2-selection--single {
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 0.75rem !important;
+        height: 48px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding-left: 0.5rem !important;
+        background-color: #F8FAFC !important;
+        transition: all 0.2s !important;
+    }
+    .select2-container--default .select2-selection--single:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+    }
+    [x-cloak] { display: none !important; }
+    .ocr-highlight { animation: pulse-yellow 2s infinite; }
+    @keyframes pulse-yellow {
+        0%, 100% { background-color: transparent; }
+        50% { background-color: rgba(254, 240, 138, 0.4); }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'purchase-list' %}" class="hover:text-accent">Purchases</a>
+<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" /></svg>
+<span class="text-slate-900 font-bold">{% if form.instance.pk %}Edit Bill{% else %}Create Purchase{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="purchaseApp()" x-init="init()" class="pb-24">
+    <form method="post" enctype="multipart/form-data" id="purchase-form" @submit="handleSubmit($event)">
+        {% csrf_token %}
+        
+        <!-- Global Error Display -->
+        {% if form.errors or items.errors %}
+        <div class="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-start gap-4 animate-shake">
+            <div class="p-2 bg-red-100 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+            <div>
+                <h3 class="text-sm font-black text-red-900 uppercase tracking-widest mb-2">Form Validation Failed</h3>
+                <ul class="text-xs text-red-700 space-y-1 list-disc list-inside font-medium leading-relaxed">
+                    {% for field, errors in form.errors.items %}
+                        <li><strong>{{ field|title }}:</strong> {{ errors|striptags }}</li>
+                    {% endfor %}
+                    {% for error in items.non_form_errors %}
+                        <li><strong>Items:</strong> {{ error }}</li>
+                    {% endfor %}
+                    {% for form_item in items %}
+                       {% if form_item.errors %}
+                           {% for field, errors in form_item.errors.items %}
+                               <li><strong>Row {{ forloop.parentloop.counter }}:</strong> {{ field|title }} - {{ errors|striptags }}</li>
+                           {% endfor %}
+                       {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Header Actions -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight font-outfit">
+                    {% if form.instance.pk %}Edit bill #{{ form.instance.bill_no }}{% else %}New Purchase Bill{% endif %}
+                </h1>
+                <p class="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">Single-Company Collaborative Entry</p>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <a href="{% url 'purchase-list' %}" class="flex-1 sm:flex-none text-center px-6 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all">
+                    Cancel
+                </a>
+                <button type="submit" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95">
+                    Save Purchase
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Side: OCR & Form Data -->
+            <div class="lg:col-span-8 space-y-8">
+                
+                <!-- OCR Upload Zone -->
+                <div class="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-8 text-center transition-all hover:border-blue-400 hover:bg-blue-50/30 group relative"
+                     :class="isDragging ? 'border-blue-500 bg-blue-50' : ''"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-xl font-black text-slate-800 font-outfit">OCR Intelligence</p>
+                            <p class="text-sm text-slate-500 font-bold">Drag & drop your supplier invoice to auto-fill details</p>
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-3 mt-2">
+                            <input type="file" id="ocr-file" class="hidden" @change="handleFileSelect($event)" accept="image/*,application/pdf">
+                            <button type="button" @click="$refs.fileInput.click()" class="px-6 py-2.5 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all">
+                                Select File
+                            </button>
+                            <button type="button" @click="startOCR()" :disabled="!pendingFile || isProcessing" 
+                                    class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                                <template x-if="isProcessing">
+                                    <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                </template>
+                                <span x-text="isProcessing ? 'Analyzing...' : 'Auto-Extract Data'"></span>
+                            </button>
+                        </div>
+                        <input type="file" x-ref="fileInput" class="hidden" @change="handleFileSelect($event)">
+                        <p x-show="pendingFile" class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 mt-2" x-text="`Queue: ${pendingFile.name}`"></p>
+                    </div>
+                </div>
+
+                <!-- Core Details -->
+                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                    <div class="p-8 border-b border-slate-50 flex items-center gap-3 bg-slate-50/50">
+                        <div class="w-2 h-8 bg-blue-600 rounded-full"></div>
+                        <h2 class="text-lg font-black text-slate-800 font-outfit uppercase tracking-tight">Purchase Bill Details</h2>
+                    </div>
+                    
+                    <div class="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Supplier Bill No</label>
+                            <input type="text" name="invoice_no" x-model="bill_no" required 
+                                   class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none"
+                                   :class="extractedFields.includes('bill_no') ? 'ocr-highlight' : ''" placeholder="e.g. INV/2026/001">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bill Date</label>
+                            <input type="date" name="invoice_date" x-model="bill_date" required 
+                                   class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none"
+                                   :class="extractedFields.includes('bill_date') ? 'ocr-highlight' : ''">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Supplier Name</label>
+                            <select name="supplier" id="supplier-select" x-ref="supplierSelect" required class="w-full">
+                                <option value="">Select Supplier</option>
+                                {% for s in form.fields.supplier.queryset %}
+                                    <option value="{{ s.id }}" data-state="{{ s.state }}" {% if form.supplier.value == s.id %}selected{% endif %}>{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Place of Supply</label>
+                            <select name="place_of_supply" x-model="pos" class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none appearance-none">
+                                {% for code, name in form.fields.place_of_supply.choices %}
+                                    <option value="{{ code }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ledger Account</label>
+                            <div class="relative">
+                                {{ form.expense_ledger }}
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</label>
+                            <div class="flex items-center gap-2">
+                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                <span class="text-xs font-black text-slate-600 uppercase tracking-widest">Active Draft</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Line Items Section -->
+                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                    <div class="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                        <div class="flex items-center gap-3">
+                            <div class="w-2 h-8 bg-indigo-600 rounded-full"></div>
+                            <h2 class="text-lg font-black text-slate-800 font-outfit uppercase tracking-tight">Line Items</h2>
+                        </div>
+                        <button type="button" @click="addRow()" class="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4" /></svg>
+                            Add line
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        {{ items.management_form }}
+                        
+                        <!-- Desktop View -->
+                        <table class="w-full text-left border-collapse whitespace-nowrap hidden md:table">
+                            <thead class="bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                    <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                    <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Qty & Rate</th>
+                                    <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Taxable</th>
+                                    <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">GST %</th>
+                                    <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
+                                    <th class="px-6 py-5 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(item, index) in rows" :key="index">
+                                    <tr class="border-b border-slate-50 group hover:bg-blue-50/20 transition-colors">
+                                        <td class="px-8 py-6">
+                                            <input type="text" :name="`items-${index}-description`" x-model="item.description" required 
+                                                   class="w-full text-sm font-black text-slate-900 bg-transparent border-none focus:ring-0 placeholder-slate-300" placeholder="Product or service name...">
+                                            <input type="text" :name="`items-${index}-hsn_sac`" x-model="item.hsn" 
+                                                   class="w-full text-[10px] font-bold text-slate-400 bg-transparent border-none focus:ring-0 uppercase tracking-widest mt-1" placeholder="HSN/SAC Code">
+                                        </td>
+                                        <td class="px-6 py-6 text-center">
+                                            <div class="flex items-center justify-center gap-2">
+                                                <input type="number" :name="`items-${index}-quantity`" x-model.number="item.qty" @input="updateLine(index)" step="0.01" 
+                                                       class="w-16 h-10 text-xs font-black text-center bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
+                                                <span class="text-slate-300 font-black">×</span>
+                                                <input type="number" :name="`items-${index}-rate`" x-model.number="item.rate" @input="updateLine(index)" step="0.01" 
+                                                       class="w-24 h-10 text-xs font-black text-center bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-6 text-center">
+                                            <span class="text-sm font-black text-slate-600 font-mono" x-text="formatCurrency(item.taxable)"></span>
+                                            <input type="hidden" :name="`items-${index}-taxable_amount`" :value="item.taxable">
+                                        </td>
+                                        <td class="px-6 py-6 text-center">
+                                            <select :name="`items-${index}-gst_percent`" x-model.number="item.gst_p" @change="updateLine(index)" 
+                                                    class="text-xs font-black text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none appearance-none">
+                                                <option value="0">0%</option>
+                                                <option value="5">5%</option>
+                                                <option value="12">12%</option>
+                                                <option value="18">18%</option>
+                                                <option value="28">28%</option>
+                                            </select>
+                                        </td>
+                                        <td class="px-8 py-6 text-right font-black text-slate-900 font-mono whitespace-nowrap">
+                                            <span x-text="formatCurrency(item.total)"></span>
+                                            <!-- Hidden fields for Django formset validation -->
+                                            <input type="hidden" :name="`items-${index}-id`" :value="item.id">
+                                            <input type="hidden" :name="`items-${index}-cgst_amount`" :value="item.cgst">
+                                            <input type="hidden" :name="`items-${index}-sgst_amount`" :value="item.sgst">
+                                            <input type="hidden" :name="`items-${index}-igst_amount`" :value="item.igst">
+                                            <input type="hidden" :name="`items-${index}-line_total`" :value="item.total">
+                                            <input type="hidden" :name="`items-${index}-tds_amount`" :value="item.tds_amt || 0">
+                                            <input type="hidden" :name="`items-${index}-tds_percent`" value="0">
+                                        </td>
+                                        <td class="px-6 py-6 text-center">
+                                            <button type="button" @click="removeRow(index)" class="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+
+                        <!-- Mobile View (Card List) -->
+                        <div class="md:hidden divide-y divide-slate-100">
+                            <template x-for="(item, index) in rows" :key="index">
+                                <div class="p-6 space-y-4">
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex-1 mr-4">
+                                            <input type="text" x-model="item.description" :name="`items-${index}-description`" 
+                                                   class="w-full text-lg font-black text-slate-900 border-none p-0 focus:ring-0" placeholder="Product name...">
+                                            <input type="text" x-model="item.hsn" :name="`items-${index}-hsn_sac`" 
+                                                   class="w-full text-[10px] font-bold text-slate-400 border-none p-0 focus:ring-0 uppercase tracking-widest" placeholder="HSN Code">
+                                        </div>
+                                        <button type="button" @click="removeRow(index)" class="p-2 text-rose-500 bg-rose-50 rounded-xl">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="space-y-1">
+                                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Qty & Rate</label>
+                                            <div class="flex items-center gap-2">
+                                                <input type="number" x-model.number="item.qty" @input="updateLine(index)" class="w-12 h-8 text-xs font-black text-center bg-slate-50 border border-slate-200 rounded-lg">
+                                                <span class="text-slate-300">×</span>
+                                                <input type="number" x-model.number="item.rate" @input="updateLine(index)" class="flex-1 h-8 text-xs font-black text-center bg-slate-50 border border-slate-200 rounded-lg">
+                                            </div>
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">GST Rate</label>
+                                            <select x-model.number="item.gst_p" @change="updateLine(index)" class="w-full h-8 text-xs font-black bg-slate-50 border border-slate-200 rounded-lg px-2">
+                                                <option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="bg-blue-50/50 p-4 rounded-2xl flex items-center justify-between">
+                                        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Row Total</span>
+                                        <span class="text-base font-black text-blue-600 font-mono" x-text="formatCurrency(item.total)"></span>
+                                        <!-- Hidden fields for Django formset validation -->
+                                        <input type="hidden" :name="`items-${index}-taxable_amount`" :value="item.taxable">
+                                        <input type="hidden" :name="`items-${index}-cgst_amount`" :value="item.cgst">
+                                        <input type="hidden" :name="`items-${index}-sgst_amount`" :value="item.sgst">
+                                        <input type="hidden" :name="`items-${index}-igst_amount`" :value="item.igst">
+                                        <input type="hidden" :name="`items-${index}-line_total`" :value="item.total">
+                                        <input type="hidden" :name="`items-${index}-tds_amount`" :value="item.tds_amt || 0">
+                                        <input type="hidden" :name="`items-${index}-tds_percent`" value="0">
+                                        <input type="hidden" :name="`items-${index}-gst_percent`" :value="item.gst_p">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Summary & Flags -->
+            <div class="lg:col-span-4 space-y-8">
+                
+                <!-- Financial Flags -->
+                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 space-y-6">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Accounting Flags</h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+                        <label class="relative flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer"
+                               :class="itc ? 'border-blue-500 bg-blue-50/30' : 'border-slate-100 bg-slate-50 hover:bg-white'">
+                            <input type="checkbox" name="itc_eligible" x-model="itc" class="hidden">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                                 :class="itc ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs font-black text-slate-900 uppercase tracking-widest">ITC Eligible</p>
+                                <p class="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Input Tax Credit</p>
+                            </div>
+                        </label>
+
+                        <label class="relative flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer"
+                               :class="rcm ? 'border-amber-500 bg-amber-50/30' : 'border-slate-100 bg-slate-50 hover:bg-white'">
+                            <input type="checkbox" name="rcm_applicable" x-model="rcm" class="hidden">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                                 :class="rcm ? 'bg-amber-600 text-white' : 'bg-slate-200 text-slate-400'">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs font-black text-slate-900 uppercase tracking-widest">RCM Apply</p>
+                                <p class="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Reverse Charge Mechanism</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Final Summary Card -->
+                <div class="bg-slate-900 rounded-[32px] p-8 shadow-2xl shadow-blue-900/40 text-white space-y-8 sticky top-24">
+                    <div class="flex items-center gap-4 border-b border-white/10 pb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 font-black text-xl italic">G</div>
+                        <div>
+                            <p class="text-xl font-black font-outfit uppercase tracking-tight">Calculation Summary</p>
+                            <p class="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Final Bill Totals</p>
+                        </div>
+                    </div>
+
+                        <div class="space-y-6">
+                            <div class="flex justify-between items-center px-2">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Taxable Value</span>
+                                <span class="text-lg font-black font-mono" x-text="formatCurrency(summary.taxable)"></span>
+                                <input type="hidden" name="total_taxable" :value="summary.taxable">
+                            </div>
+                            
+                            <div class="space-y-3 pt-2">
+                                <template x-if="!isIGST">
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+                                            <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest">CGST (Central)</span>
+                                            <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.cgst)"></span>
+                                            <input type="hidden" name="total_cgst" :value="summary.cgst">
+                                        </div>
+                                        <div class="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+                                            <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">SGST (State)</span>
+                                            <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.sgst)"></span>
+                                            <input type="hidden" name="total_sgst" :value="summary.sgst">
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="isIGST">
+                                    <div class="flex justify-between items-center px-4 py-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                                        <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">IGST (Integrated)</span>
+                                        <span class="text-sm font-black font-mono" x-text="formatCurrency(summary.igst)"></span>
+                                        <input type="hidden" name="total_igst" :value="summary.igst">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="pt-8 border-t border-white/10 mt-4">
+                                <div class="flex flex-col items-center gap-2">
+                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">NET PAYABLE</span>
+                                    <div class="text-5xl font-black font-outfit bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-400" x-text="formatCurrency(summary.net)"></div>
+                                    <input type="hidden" name="net_amount" :value="summary.net">
+                                </div>
+                            </div>
+                        </div>
+
+                    <div class="pt-4">
+                        <button type="submit" @click="handleSubmit($event)" class="w-full bg-white text-slate-900 font-black py-5 rounded-3xl shadow-xl hover:bg-blue-50 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                            Post to Ledger
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- OCR Partial Target -->
+<div id="ocr-result-target" class="hidden"></div>
+
+<script>
+$(document).ready(function() {
+    $('#supplier-select').select2({
+        placeholder: "Search Supplier...",
+        width: '100%',
+        dropdownCssClass: 'premium-dropdown'
+    });
+});
+
+function purchaseApp() {
+    return {
+        isDragging: false,
+        pendingFile: null,
+        isProcessing: false,
+        itc: true,
+        rcm: false,
+        isIGST: false,
+        isIGST: false,
+        pos: '{{ company.state|default:"DL" }}',
+        companyState: '{{ company.state|default:"DL" }}',
+        bill_no: '{{ form.invoice_no.value|default:"" }}',
+        bill_date: '{{ form.invoice_date.value|date:"Y-m-d"|default:"" }}',
+        rows: [],
+        summary: { taxable: 0, cgst: 0, sgst: 0, igst: 0, net: 0 },
+        extractedFields: [],
+
+        init() {
+            // Load existing rows or add one
+            const existingRows = [
+                {% for item_form in items %}
+                {
+                    id: '{{ item_form.id.value|default:"" }}',
+                    description: '{{ item_form.description.value|default:""|escapejs }}',
+                    hsn: '{{ item_form.hsn_sac.value|default:""|escapejs }}',
+                    qty: parseFloat('{{ item_form.quantity.value|default:0 }}') || 0,
+                    rate: parseFloat('{{ item_form.rate.value|default:0 }}') || 0,
+                    gst_p: parseInt('{{ item_form.gst_percent.value|default:18 }}') || 18,
+                    taxable: 0,
+                    total: 0
+                },
+                {% endfor %}
+            ];
+            
+            if (existingRows.length > 0) {
+                this.rows = existingRows;
+                this.rows.forEach((_, i) => this.updateLine(i));
+            } else {
+                this.addRow();
+            }
+
+            // Watch Select2
+            $('#supplier-select').on('change', (e) => {
+                const state = $(e.target).find(':selected').data('state');
+                if (state) this.pos = state;
+                this.recalculate();
+            });
+
+            this.$watch('pos', () => this.recalculate());
+        },
+
+        addRow() {
+            this.rows.push({ id: '', description: '', hsn: '', qty: 0, rate: 0, taxable: 0, gst_p: 18, total: 0 });
+            this.$nextTick(() => {
+                const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+                if (totalForms) totalForms.value = this.rows.length;
+            });
+        },
+
+        removeRow(idx) {
+            if (this.rows.length > 1) {
+                this.rows.splice(idx, 1);
+                this.$nextTick(() => {
+                    const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+                    if (totalForms) totalForms.value = this.rows.length;
+                    this.recalculate();
+                });
+            }
+        },
+
+        updateLine(idx) {
+            const r = this.rows[idx];
+            const qty = parseFloat(r.qty) || 0;
+            const rate = parseFloat(r.rate) || 0;
+            const gstP = parseFloat(r.gst_p) || 0;
+            
+            r.taxable = Number((qty * rate).toFixed(2));
+            r.total = Number((r.taxable * (1 + (gstP / 100))).toFixed(2));
+            this.recalculate();
+        },
+
+        recalculate() {
+            this.isIGST = (this.pos !== this.companyState);
+            
+            let taxable = 0, cgst = 0, sgst = 0, igst = 0;
+            
+            this.rows.forEach(r => {
+                const rTaxable = parseFloat(r.taxable) || 0;
+                const rGstP = parseFloat(r.gst_p) || 0;
+                const rTax = rTaxable * (rGstP / 100);
+                
+                r.cgst = 0; r.sgst = 0; r.igst = 0;
+                
+                taxable += rTaxable;
+                if (this.isIGST) {
+                    r.igst = Number(rTax.toFixed(2));
+                    igst += r.igst;
+                } else {
+                    r.cgst = Number((rTax / 2).toFixed(2));
+                    r.sgst = Number((rTax / 2).toFixed(2));
+                    cgst += r.cgst;
+                    sgst += r.sgst;
+                }
+            });
+
+            this.summary.taxable = Number(taxable.toFixed(2));
+            this.summary.cgst = Number(cgst.toFixed(2));
+            this.summary.sgst = Number(sgst.toFixed(2));
+            this.summary.igst = Number(igst.toFixed(2));
+            this.summary.net = Number((taxable + cgst + sgst + igst).toFixed(2));
+        },
+
+        formatCurrency(v) {
+            return '₹' + (parseFloat(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+
+        handleFileSelect(e) { this.pendingFile = e.target.files[0]; },
+        handleDrop(e) { this.pendingFile = e.dataTransfer.files[0]; this.isDragging = false; },
+
+        async startOCR() {
+            if (!this.pendingFile) return;
+            this.isProcessing = true;
+            let fd = new FormData(); 
+            fd.append('file', this.pendingFile);
+            fd.append('type', 'PURCHASE');
+            
+            try {
+                const response = await fetch("{% url 'ocr-upload' %}", {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                });
+                const html = await response.text();
+                document.getElementById('ocr-result-target').innerHTML = html;
+                this.applyOCR();
+            } catch (error) {
+                console.error("OCR Failed:", error);
+                alert("Smart analysis failed. Please enter details manually.");
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        applyOCR() {
+            const ocrDataElement = document.getElementById('ocr-data');
+            if (!ocrDataElement) return;
+            const data = JSON.parse(ocrDataElement.textContent);
+            
+            if (data.invoice_no) { this.bill_no = data.invoice_no; this.extractedFields.push('bill_no'); }
+            if (data.invoice_date) { this.bill_date = data.invoice_date; this.extractedFields.push('bill_date'); }
+            if (data.supplier_id) {
+                $('#supplier-select').val(data.supplier_id).trigger('change');
+                this.extractedFields.push('supplier');
+            }
+            
+            // If data has items, replace rows
+            if (data.items && data.items.length > 0) {
+                this.rows = data.items.map(item => ({
+                    id: '',
+                    description: item.description || '',
+                    hsn: item.hsn || '',
+                    qty: parseFloat(item.quantity) || 1,
+                    rate: parseFloat(item.rate) || 0,
+                    gst_p: parseFloat(item.gst_percent) || 18,
+                    taxable: 0,
+                    total: 0
+                }));
+                this.rows.forEach((_, i) => this.updateLine(i));
+            } else if (data.total_amount) {
+                // If only total was found, put in first row
+                this.rows[0].rate = parseFloat(data.total_amount) / 1.18;
+                this.rows[0].qty = 1;
+                this.updateLine(0);
+            }
+        },
+
+        handleSubmit(e) {
+            console.log("Submitting purchase invoice...");
+            this.updateManagementForm();
+            this.recalculate();
+        }
+    }
+}
+</script>
+{% endblock %}
