@@ -13,3 +13,5 @@ charset-normalizer
 reportlab
 pypdf
 django-environ
+django-select2
+django-cleanup
