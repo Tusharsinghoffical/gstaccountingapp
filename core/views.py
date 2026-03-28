@@ -29,11 +29,6 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
-try:
-    from xhtml2pdf import pisa
-    XHTML2PDF_AVAILABLE = True
-except ImportError:
-    XHTML2PDF_AVAILABLE = False
 import tempfile
 import os
 
@@ -226,9 +221,6 @@ class InvoiceUpdateView(AuditorReadOnlyMixin, UpdateView):
 
 class InvoicePDFView(View):
     def get(self, request, pk):
-        if not XHTML2PDF_AVAILABLE:
-            return HttpResponse("PDF Generation is currently unavailable (missing xhtml2pdf library).", status=503)
-
         invoice = get_object_or_404(SalesInvoice, pk=pk)
         company = CompanyProfile.objects.first()
         from num2words import num2words
@@ -246,15 +238,7 @@ class InvoicePDFView(View):
             'request': request,
         })
 
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{invoice.invoice_no}.pdf"'
-        response['Content-Transfer-Encoding'] = 'binary'
-
-        pisa_status = pisa.CreatePDF(html_string, dest=response)
-
-        if pisa_status.err:
-            return HttpResponse(f'We had some errors <pre>{html_string}</pre>', status=500)
-        return response
+        return HttpResponse(html_string)
 
 
 class PurchaseListView(ListView):
@@ -467,14 +451,7 @@ class PaymentPDFView(View):
             'company': company,
         })
 
-        if XHTML2PDF_AVAILABLE:
-            response = HttpResponse(content_type='application/pdf')
-            response['Content-Disposition'] = f'inline; filename="Voucher_{payment.payment_no}.pdf"'
-            pisa_status = pisa.CreatePDF(html_string, dest=response)
-            if not pisa_status.err:
-                return response
-
-        return HttpResponse(html_string)  # Fallback to HTML if PDF fails
+        return HttpResponse(html_string)
 
 
 class ReportIndexView(TemplateView):
