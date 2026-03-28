@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import View, ListView, CreateView, UpdateView, DetailView, FormView, TemplateView
 from django.contrib.auth import views as auth_views
+from django.contrib.auth.mixins import LoginRequiredMixin
 from .forms import (
     PartyForm, SalesInvoiceForm, SalesInvoiceItemFormSet,
     PurchaseInvoiceForm, PurchaseInvoiceItemFormSet, PaymentEntryForm
@@ -480,8 +481,9 @@ class ReportIndexView(TemplateView):
     template_name = 'reports/index.html'
 
 
-class DashboardView(TemplateView):
+class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/index.html'
+    login_url = 'login'  # Redirect unauthenticated users to login page
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
