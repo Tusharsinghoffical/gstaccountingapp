@@ -42,6 +42,7 @@ urlpatterns = [
     path('purchases/ocr/', OCRUploadView.as_view(), name='ocr-upload'),
     path('purchases/<int:pk>/edit/',
          PurchaseUpdateView.as_view(), name='purchase-update'),
+    path('purchases/<int:pk>/pdf/', PurchaseInvoicePDFView.as_view(), name='purchase-pdf'),
     # Force reload of URLs
 
     path('payments/', PaymentListView.as_view(), name='payment-list'),

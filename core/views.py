@@ -286,6 +286,28 @@ class InvoicePDFView(View):
         return HttpResponse(html_string)
 
 
+class PurchaseInvoicePDFView(View):
+    def get(self, request, pk):
+        invoice = get_object_or_404(PurchaseInvoice, pk=pk)
+        company = CompanyProfile.objects.first()
+        from num2words import num2words
+        amount_in_words = ""
+        try:
+            amount_in_words = num2words(
+                invoice.net_amount, lang='en_IN', to='currency').upper()
+        except:
+            amount_in_words = num2words(invoice.net_amount).upper()
+
+        html_string = render_to_string('invoices/pdf_template.html', {
+            'invoice': invoice,
+            'company': company,
+            'amount_in_words': amount_in_words,
+            'request': request,
+        })
+
+        return HttpResponse(html_string)
+
+
 class PurchaseListView(ListView):
     model = PurchaseInvoice
     template_name = 'invoices/purchase_list.html'
