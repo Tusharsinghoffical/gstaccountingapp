@@ -5,6 +5,38 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def assign_users_to_existing_data(apps, schema_editor):
+    """
+    Assign existing records to the first available user.
+    If no users exist, leave them unassigned (will be handled by application logic).
+    """
+    User = apps.get_model('auth', 'User')
+
+    # Get the first user (usually the admin/owner)
+    first_user = User.objects.first()
+
+    if not first_user:
+        # No users exist - records will remain with NULL user_id
+        # Application should handle this case
+        return
+
+    # Update all models to reference the first user
+    models_to_update = [
+        ('core', 'CompanyProfile'),
+        ('core', 'JournalEntry'),
+        ('core', 'LedgerAccount'),
+        ('core', 'Party'),
+        ('core', 'PaymentEntry'),
+        ('core', 'PurchaseInvoice'),
+        ('core', 'SalesInvoice'),
+    ]
+
+    for app_label, model_name in models_to_update:
+        Model = apps.get_model(app_label, model_name)
+        # Update all records that don't have a user assigned
+        Model.objects.filter(user__isnull=True).update(user=first_user)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -13,39 +45,50 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Step 1: Add nullable fields
         migrations.AddField(
             model_name='companyprofile',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='company_profiles', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='company_profiles', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='journalentry',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='journal_entries', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='journal_entries', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='ledgeraccount',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='ledger_accounts', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='ledger_accounts', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='party',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='parties', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='parties', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='paymententry',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='payment_entries', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='payment_entries', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='purchaseinvoice',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='purchase_invoices', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='purchase_invoices', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='salesinvoice',
             name='user',
-            field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='sales_invoices', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.SET_NULL,
+                                    related_name='sales_invoices', to=settings.AUTH_USER_MODEL),
         ),
+        # Step 2: Assign existing data to first user
+        migrations.RunPython(assign_users_to_existing_data,
+                             reverse_code=migrations.RunPython.noop),
     ]
