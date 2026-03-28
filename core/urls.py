@@ -4,7 +4,7 @@ from .views import (
     DashboardView, PartyListView,
     PartyCreateView, PartyUpdateView, PartyDeleteView, PartyDetailView,
     InvoiceListView, InvoiceCreateView, InvoiceUpdateView, InvoicePDFView, InvoiceDeleteView,
-    PurchaseListView, PurchaseCreateView, PurchaseUpdateView, OCRUploadView,
+    PurchaseListView, PurchaseCreateView, PurchaseUpdateView, PurchaseInvoicePDFView, OCRUploadView,
     PaymentListView, PaymentCreateView, PaymentPDFView,
     ReportIndexView, PartyLedgerView, OutstandingView, AgeingReportView, GSTReportView,
     CashBankBookView, TDSReportView, UserSettingsView,
@@ -42,7 +42,8 @@ urlpatterns = [
     path('purchases/ocr/', OCRUploadView.as_view(), name='ocr-upload'),
     path('purchases/<int:pk>/edit/',
          PurchaseUpdateView.as_view(), name='purchase-update'),
-    path('purchases/<int:pk>/pdf/', PurchaseInvoicePDFView.as_view(), name='purchase-pdf'),
+    path('purchases/<int:pk>/pdf/',
+         PurchaseInvoicePDFView.as_view(), name='purchase-pdf'),
     # Force reload of URLs
 
     path('payments/', PaymentListView.as_view(), name='payment-list'),
