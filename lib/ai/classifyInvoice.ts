@@ -4,6 +4,7 @@ import {
   purchaseCategorySchema,
 } from "../validation/invoice.ts";
 import type { PurchaseInvoiceCategory } from "../validation/invoice.ts";
+import { logger } from "@/lib/logger";
 
 export interface ClassifyInvoiceInput {
   vendor_name?: string | null;
@@ -200,7 +201,7 @@ Return ONLY a JSON object with this exact structure:
         }
       }
     } catch (groqErr) {
-      console.warn("Groq invoice classification call failed, falling back to heuristic:", groqErr);
+      logger.warn("Groq invoice classification call failed, falling back to heuristic", groqErr);
     }
   }
 

@@ -2,7 +2,9 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui";
 import {
   uploadInvoiceDocument,
@@ -24,6 +26,8 @@ type UploadStage =
 
 export default function OCRUploadPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const activeBusinessId = session?.user?.businesses?.[0]?.businessId;
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -142,7 +146,9 @@ export default function OCRUploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("businessId", "biz-1");
+    if (activeBusinessId) {
+      formData.append("businessId", activeBusinessId);
+    }
 
     try {
       const res = await uploadInvoiceDocument(formData);
@@ -377,7 +383,7 @@ export default function OCRUploadPage() {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
             <span className="w-2 h-2 rounded-full bg-brand-600 animate-pulse"></span>
-            Storage RLS Scoped: <span className="font-mono font-bold">biz-1</span>
+            Storage Scoped: <span className="font-mono font-bold">{activeBusinessId ? activeBusinessId.slice(0, 8) : "Active Workspace"}</span>
           </span>
         </div>
       </div>
@@ -547,10 +553,12 @@ export default function OCRUploadPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
               <div className="relative rounded-xl overflow-hidden border border-neutral-200 bg-neutral-900 aspect-[3/4] flex items-center justify-center shadow-inner">
                 {filePreviewUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
+                  <Image
                     src={filePreviewUrl}
                     alt="Invoice Preview"
+                    width={400}
+                    height={533}
+                    unoptimized
                     className="w-full h-full object-cover opacity-85"
                   />
                 ) : (

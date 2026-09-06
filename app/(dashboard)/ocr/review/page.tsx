@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Button, Input } from "@/components/ui";
 import {
   createInvoice,
@@ -480,10 +481,12 @@ export default function OCRReviewPage() {
                   transformOrigin: "center center",
                 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={previewUrl}
                   alt="Scanned Invoice"
+                  width={800}
+                  height={1000}
+                  unoptimized
                   className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                 />
               </div>

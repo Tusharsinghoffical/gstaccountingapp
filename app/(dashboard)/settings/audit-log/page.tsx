@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { getFinancialAuditLogs } from "@/app/actions/audit";
 import { switchDemoRole, getCurrentUserRole } from "@/app/actions/users";
@@ -28,7 +28,7 @@ export default function AuditLogPage() {
 
   const [, startTransition] = useTransition();
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -52,14 +52,13 @@ export default function AuditLogPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedTable, selectedAction, searchQuery]);
 
   useEffect(() => {
     startTransition(() => {
       fetchLogs();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTable, selectedAction, searchQuery]);
+  }, [fetchLogs]);
 
   const handleSimulateRole = async (newRole: UserRole) => {
     await switchDemoRole(newRole);

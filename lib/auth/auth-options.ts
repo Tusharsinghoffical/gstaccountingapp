@@ -137,9 +137,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-        const u = user as unknown as Record<string, unknown>;
-        token.businesses = u.businesses as any;
-        token.sessionVersion = u.sessionVersion as number | undefined;
+        token.businesses = user.businesses;
+        token.sessionVersion = user.sessionVersion;
       }
 
       // Periodically verify sessionVersion against DB to immediately invalidate old sessions on password reset
@@ -164,10 +163,9 @@ export const authOptions: NextAuthOptions = {
         return null as unknown as typeof session;
       }
       if (session.user) {
-        const s = session.user as unknown as Record<string, unknown>;
-        s.id = token.id as string;
-        s.businesses = token.businesses;
-        s.sessionVersion = token.sessionVersion;
+        session.user.id = token.id as string;
+        session.user.businesses = token.businesses;
+        session.user.sessionVersion = token.sessionVersion;
       }
       return session;
     },

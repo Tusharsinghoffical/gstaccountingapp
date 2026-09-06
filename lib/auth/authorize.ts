@@ -89,3 +89,42 @@ export function getSessionUserId(session: AuthSession | null | undefined): strin
   }
   return session.user.id;
 }
+
+/**
+ * Resolves authenticated session and active tenant businessId.
+ * Never falls back to an unverified or demo ID like "biz-1".
+ * Throws UnauthorizedError if not logged in, or ForbiddenError if no active business assigned.
+ */
+export async function getAuthenticatedSessionAndBusiness(providedBusinessId?: string): Promise<{
+  session: AuthSession;
+  userId: string;
+  businessId: string;
+}> {
+  // Dynamic import to avoid circular dependency
+  const { getServerSession } = await import("next-auth");
+  const { authOptions } = await import("@/lib/auth/auth-options");
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new UnauthorizedError("401: Unauthorized - Please log in to perform this action");
+  }
+  const userId = session.user.id;
+
+  if (providedBusinessId) {
+    await assertBusinessMembership(userId, providedBusinessId);
+    return { session, userId, businessId: providedBusinessId };
+  }
+
+  const membership = await prisma.businessUser.findFirst({
+    where: { userId, status: "active" },
+    select: { businessId: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!membership) {
+    throw new ForbiddenError("403: Forbidden - No active business assigned to this account");
+  }
+
+  return { session, userId, businessId: membership.businessId };
+}
+

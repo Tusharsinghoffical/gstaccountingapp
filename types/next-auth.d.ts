@@ -1,5 +1,12 @@
 import "next-auth";
 
+export interface UserBusinessInfo {
+  businessId: string;
+  role: string;
+  name: string;
+  gstin: string;
+}
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -8,12 +15,7 @@ declare module "next-auth" {
       name?: string | null;
       image?: string | null;
       sessionVersion?: number;
-      businesses?: Array<{
-        businessId: string;
-        role: string;
-        name: string;
-        gstin: string;
-      }>;
+      businesses?: UserBusinessInfo[];
     };
   }
 
@@ -22,12 +24,7 @@ declare module "next-auth" {
     email?: string | null;
     name?: string | null;
     sessionVersion?: number;
-    businesses?: Array<{
-      businessId: string;
-      role: string;
-      name: string;
-      gstin: string;
-    }>;
+    businesses?: UserBusinessInfo[];
   }
 }
 
@@ -35,6 +32,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     sessionVersion?: number;
-    businesses?: unknown;
+    businesses?: UserBusinessInfo[];
   }
 }

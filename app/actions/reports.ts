@@ -18,11 +18,12 @@ import {
  * Server action to generate GSTR-1 dataset for a specified financial year and month/quarter period.
  */
 export async function getGstr1Report(
-  filter: Gstr1PeriodFilter
+  filter: Gstr1PeriodFilter,
+  businessId?: string
 ): Promise<Gstr1ReportData> {
   const [invoices, customers] = await Promise.all([
-    getInvoices(),
-    getCustomers(),
+    getInvoices(businessId),
+    getCustomers(businessId),
   ]);
 
   const customerMap = new Map(customers.map((c) => [c.id, c]));
@@ -46,12 +47,13 @@ export async function getGstr1Report(
  * Server action to generate Accounts Receivable Ageing & Outstanding report.
  */
 export async function getAgeingReport(
-  asOfDate?: string
+  asOfDate?: string,
+  businessId?: string
 ): Promise<AgeingReportData> {
   const [invoices, customers, allocations] = await Promise.all([
-    getInvoices(),
-    getCustomers(),
-    getPaymentAllocations(),
+    getInvoices(businessId),
+    getCustomers(businessId),
+    getPaymentAllocations(businessId),
   ]);
 
   return computeAgeingReport(invoices, customers, allocations, asOfDate);

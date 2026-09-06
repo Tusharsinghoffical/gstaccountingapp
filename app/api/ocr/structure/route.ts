@@ -3,6 +3,7 @@ import {
   validateStructuredInvoice,
   StructuredInvoiceData,
 } from "@/lib/validation/ocr";
+import { logger } from "@/lib/logger";
 
 export interface StructureInvoiceResponse {
   success: boolean;
@@ -71,14 +72,14 @@ export async function POST(req: NextRequest) {
             try {
               structuredJson = JSON.parse(content);
             } catch (e) {
-              console.warn("Could not parse Groq JSON response:", e);
+              logger.warn("Could not parse Groq JSON response", e);
             }
           }
         } else {
-          console.warn(`Groq API returned HTTP ${groqRes.status}`);
+          logger.warn(`Groq API returned HTTP ${groqRes.status}`);
         }
       } catch (fetchErr) {
-        console.warn("Groq structuring fetch failed or timed out, falling back to local parser:", fetchErr);
+        logger.warn("Groq structuring fetch failed or timed out, falling back to local parser", fetchErr);
       }
     }
 

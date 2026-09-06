@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { validateGSTIN } from "@/lib/validation/gstin";
 
 const onboardingSchema = z.object({
@@ -85,7 +86,7 @@ export async function completeOnboarding(
 
     return { success: true, businessId: result.id };
   } catch (err: unknown) {
-    console.error("Failed to complete onboarding:", err);
+    logger.error("Failed to complete onboarding", err);
     return {
       success: false,
       error: "Unable to create business. Please try again.",

@@ -91,6 +91,7 @@ export async function getInvoiceById(
       businessId,
     },
     include: {
+      business: true,
       items: true,
       paymentAllocations: {
         include: {

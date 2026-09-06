@@ -1,76 +1,97 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getInvoiceById } from "@/app/actions/invoices";
-import { getCustomerById, getSupplierById } from "@/app/actions/parties";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-options";
+import { assertBusinessMembership } from "@/lib/auth/authorize";
+import { getInvoiceById } from "@/lib/data/invoices";
+import { getCustomerById } from "@/lib/data/customers";
+import { getSupplierById } from "@/lib/data/suppliers";
 import { numberToWordsINR } from "@/lib/numberToWordsINR";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = params;
-  const invoice = await getInvoiceById(id);
+  const { searchParams } = new URL(request.url);
+  const requestedBusinessId = searchParams.get("businessId") || session?.user?.businesses?.[0]?.businessId;
+
+  if (!requestedBusinessId) {
+    return NextResponse.json({ error: "Missing business context" }, { status: 400 });
+  }
+
+  let invoice;
+  try {
+    invoice = await getInvoiceById(session, requestedBusinessId, id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden or Invoice not found" }, { status: 403 });
+  }
 
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
+  // Enforce tenant boundary
+  try {
+    await assertBusinessMembership(userId, invoice.businessId);
+  } catch {
+    return NextResponse.json({ error: "Forbidden: Access denied to this business" }, { status: 403 });
+  }
+
+  const biz = invoice.business;
+  const businessInfo = {
+    name: biz?.name || "Business Enterprise",
+    legal_name: biz?.legalName || biz?.name || "Business Enterprise",
+    gstin: biz?.gstin || "N/A",
+    state_code: biz?.stateCode || "27",
+    address: biz?.address || "Registered Business Address",
+    email: biz?.email || "",
+    phone: biz?.phone || "",
+  };
+
   // Fetch counterparty details
-  let partyName = invoice.party_name;
+  let partyName = "Counterparty";
   let partyGstin = "";
   let partyStateCode = "27";
-  let partyAddress = "Mumbai, Maharashtra";
+  let partyAddress = "Counterparty Address";
 
   if (invoice.type === "sales") {
-    const cust = await getCustomerById(invoice.customer_or_supplier_id);
+    const cust = await getCustomerById(session, invoice.businessId, invoice.customerOrSupplierId);
     if (cust) {
       partyName = cust.name;
       partyGstin = cust.gstin || "Unregistered Buyer";
-      partyStateCode = cust.state_code;
-      partyAddress = cust.billing_address || "Mumbai, Maharashtra";
+      partyStateCode = cust.stateCode;
+      partyAddress = cust.billingAddress || "Counterparty Address";
     }
   } else {
-    const supp = await getSupplierById(invoice.customer_or_supplier_id);
+    const supp = await getSupplierById(session, invoice.businessId, invoice.customerOrSupplierId);
     if (supp) {
       partyName = supp.name;
       partyGstin = supp.gstin || "";
-      partyStateCode = supp.state_code;
-      partyAddress = supp.billing_address || "Mumbai, Maharashtra";
+      partyStateCode = supp.stateCode;
+      partyAddress = supp.billingAddress || "Counterparty Address";
     }
   }
 
-  const payload = {
-    invoice: {
-      ...invoice,
-      amount_in_words: numberToWordsINR(invoice.total),
-    },
-    business: {
-      name: "GST Ledger Enterprises Pvt Ltd",
-      legal_name: "GST Ledger Enterprises Private Limited",
-      gstin: "27AAPFU0939F1ZV",
-      state_code: "27",
-      address: "101, Maker Chambers V, Nariman Point, Mumbai, Maharashtra 400021",
-      email: "billing@gstledger.in",
-      phone: "+91 22 2288 0000",
-    },
-    counterparty: {
-      name: partyName,
-      gstin: partyGstin,
-      state_code: partyStateCode,
-      address: partyAddress,
-    },
-    items: invoice.items,
-  };
+  const totalNumber = Number(invoice.total);
+  const subtotalNumber = Number(invoice.subtotal);
+  const cgstNumber = Number(invoice.cgst);
+  const sgstNumber = Number(invoice.sgst);
+  const igstNumber = Number(invoice.igst);
 
-  // Direct GST Rule 46 compliant print-ready HTML view
-  // Provides instant high-definition vector print/save-as-pdf in local architecture
-  const isInterState = (invoice.igst || 0) > 0;
-  const amountWords = numberToWordsINR(invoice.total);
+  const isInterState = igstNumber > 0;
+  const amountWords = numberToWordsINR(totalNumber);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tax Invoice - ${invoice.invoice_no}</title>
+  <title>Tax Invoice - ${invoice.invoiceNo}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; color: #111; font-size: 12px; }
     .invoice-box { max-width: 800px; margin: auto; border: 1px solid #ddd; padding: 24px; border-radius: 8px; }
@@ -117,20 +138,19 @@ export async function GET(
         <div class="subtitle">(Issued under Section 31 of CGST Act & Rule 46 of CGST Rules)</div>
       </div>
       <div class="inv-meta">
-        <h3>${invoice.invoice_no}</h3>
-        <div class="meta-date">Date: ${invoice.invoice_date}</div>
-        <div class="meta-date">FY: ${invoice.financial_year}</div>
-        ${invoice.original_invoice_id ? `<div class="meta-date" style="color: #0052cc; font-weight: 600;">Ref Invoice: ${invoice.original_invoice_id}</div>` : ""}
+        <h3>${invoice.invoiceNo}</h3>
+        <div class="meta-date">Date: ${invoice.invoiceDate}</div>
+        <div class="meta-date">FY: ${invoice.financialYear}</div>
       </div>
     </div>
 
     <div class="parties">
       <div class="party-box">
         <div class="party-title">Supplier / Seller</div>
-        <div class="party-name">GST Ledger Enterprises Pvt Ltd</div>
-        <div>GSTIN: <strong>27AAPFU0939F1ZV</strong></div>
-        <div>State: Maharashtra (Code: 27)</div>
-        <div>101, Maker Chambers V, Nariman Point, Mumbai 400021</div>
+        <div class="party-name">${businessInfo.name}</div>
+        <div>GSTIN: <strong>${businessInfo.gstin}</strong></div>
+        <div>State Code: ${businessInfo.state_code}</div>
+        <div>${businessInfo.address}</div>
       </div>
       <div class="party-box">
         <div class="party-title">Billed To / Recipient</div>
@@ -156,15 +176,15 @@ export async function GET(
       <tbody>
         ${invoice.items
           .map(
-            (item: any, idx: number) => `
+            (item, idx: number) => `
           <tr>
             <td class="text-center">${idx + 1}</td>
             <td><strong>${item.description}</strong></td>
-            <td class="text-center font-mono">${item.hsn_code}</td>
-            <td class="text-right">${item.qty}</td>
-            <td class="text-right">${item.rate.toFixed(2)}</td>
-            <td class="text-right">${(item.discount || 0).toFixed(2)}</td>
-            <td class="text-right"><strong>${item.taxable_amount.toFixed(2)}</strong></td>
+            <td class="text-center font-mono">${item.hsnCode}</td>
+            <td class="text-right">${Number(item.qty).toFixed(3)}</td>
+            <td class="text-right">${Number(item.rate).toFixed(2)}</td>
+            <td class="text-right">${Number(item.discount || 0).toFixed(2)}</td>
+            <td class="text-right"><strong>${Number(item.taxableAmount).toFixed(2)}</strong></td>
           </tr>
         `
           )
@@ -189,16 +209,21 @@ export async function GET(
       </thead>
       <tbody>
         ${invoice.items
-          .map((item: any) => {
-            const tax = (item.cgst_amount || 0) + (item.sgst_amount || 0) + (item.igst_amount || 0);
+          .map((item) => {
+            const itemCgst = Number(item.cgstAmount || 0);
+            const itemSgst = Number(item.sgstAmount || 0);
+            const itemIgst = Number(item.igstAmount || 0);
+            const itemTaxable = Number(item.taxableAmount || 0);
+            const itemGstRate = Number(item.gstRate || 0);
+            const tax = itemCgst + itemSgst + itemIgst;
             return `
           <tr>
-            <td>${item.hsn_code}</td>
-            <td class="text-right">${item.taxable_amount.toFixed(2)}</td>
-            <td class="text-right">${isInterState ? item.gst_rate + "%" : item.gst_rate / 2 + "%"}</td>
-            <td class="text-right">${isInterState ? item.igst_amount.toFixed(2) : item.cgst_amount.toFixed(2)}</td>
-            <td class="text-right">${isInterState ? "-" : item.gst_rate / 2 + "%"}</td>
-            <td class="text-right">${isInterState ? "-" : item.sgst_amount.toFixed(2)}</td>
+            <td>${item.hsnCode}</td>
+            <td class="text-right">${itemTaxable.toFixed(2)}</td>
+            <td class="text-right">${isInterState ? itemGstRate + "%" : itemGstRate / 2 + "%"}</td>
+            <td class="text-right">${isInterState ? itemIgst.toFixed(2) : itemCgst.toFixed(2)}</td>
+            <td class="text-right">${isInterState ? "-" : itemGstRate / 2 + "%"}</td>
+            <td class="text-right">${isInterState ? "-" : itemSgst.toFixed(2)}</td>
             <td class="text-right"><strong>${tax.toFixed(2)}</strong></td>
           </tr>
         `;
@@ -211,26 +236,26 @@ export async function GET(
       <div style="width: 250px;">
         <div style="display: flex; justify-content: space-between; padding: 2px 0;">
           <span>Total Taxable Value:</span>
-          <span>₹${invoice.subtotal.toFixed(2)}</span>
+          <span>₹${subtotalNumber.toFixed(2)}</span>
         </div>
         ${
           isInterState
             ? `<div style="display: flex; justify-content: space-between; padding: 2px 0;">
                  <span>IGST Total:</span>
-                 <span>₹${invoice.igst.toFixed(2)}</span>
+                 <span>₹${igstNumber.toFixed(2)}</span>
                </div>`
             : `<div style="display: flex; justify-content: space-between; padding: 2px 0;">
                  <span>CGST Total:</span>
-                 <span>₹${invoice.cgst.toFixed(2)}</span>
+                 <span>₹${cgstNumber.toFixed(2)}</span>
                </div>
                <div style="display: flex; justify-content: space-between; padding: 2px 0;">
                  <span>SGST Total:</span>
-                 <span>₹${invoice.sgst.toFixed(2)}</span>
+                 <span>₹${sgstNumber.toFixed(2)}</span>
                </div>`
         }
         <div style="display: flex; justify-content: space-between; padding: 6px 0; border-top: 2px solid #111; font-weight: 700; font-size: 13px; color: #0052cc;">
           <span>Grand Total:</span>
-          <span>₹${invoice.total.toFixed(2)}</span>
+          <span>₹${totalNumber.toFixed(2)}</span>
         </div>
       </div>
     </div>
@@ -245,7 +270,7 @@ export async function GET(
         We declare that this invoice shows the actual price of the goods/services described and that all particulars are true and correct.
       </div>
       <div class="signatory">
-        <div style="font-weight: 700; font-size: 11px;">For GST Ledger Enterprises Pvt Ltd</div>
+        <div style="font-weight: 700; font-size: 11px;">For ${businessInfo.name}</div>
         <div class="sign-line"></div>
         <div style="font-size: 10px; color: #555;">Authorised Signatory</div>
       </div>
@@ -261,4 +286,3 @@ export async function GET(
     },
   });
 }
-

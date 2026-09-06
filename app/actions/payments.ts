@@ -3,14 +3,29 @@
 import { recordPaymentSchema, RecordPaymentFormData } from "@/lib/validation/payment";
 import { getCustomerById, getSupplierById } from "./parties";
 import { Payment, PaymentAllocation } from "@/types";
+import { getAuthenticatedSessionAndBusiness } from "@/lib/auth/authorize";
+import {
+  getPayments as dataGetPayments,
+  getPaymentById as dataGetPaymentById,
+  createPayment as dataCreatePayment,
+} from "@/lib/data/payments";
+import { getInvoices as dataGetInvoices } from "@/lib/data/invoices";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth-options";
 
 export type PaymentWithParty = Payment & {
   party_name: string;
   allocated_total: number;
   unallocated: number;
+  allocations?: {
+    id: string;
+    business_id: string;
+    payment_id: string;
+    invoice_id: string;
+    allocated_amount: number;
+    created_at: string;
+    invoice_no?: string;
+    invoice_total?: number;
+  }[];
 };
 
 export interface OpenInvoiceItem {
@@ -23,29 +38,10 @@ export interface OpenInvoiceItem {
   remaining_balance: number;
 }
 
-async function getActiveBusinessId(providedBizId?: string): Promise<string> {
-  if (providedBizId) return providedBizId;
-  try {
-    const session = await getServerSession(authOptions);
-    if (session?.user && (session.user as any).id) {
-      const bu = await prisma.businessUser.findFirst({
-        where: { userId: (session.user as any).id, status: "active" },
-        select: { businessId: true },
-        orderBy: { createdAt: "asc" },
-      });
-      if (bu) return bu.businessId;
-    }
-  } catch {
-    // Fallback if session is unavailable
-  }
-  const first = await prisma.business.findFirst({ select: { id: true } });
-  return first?.id || "biz-1";
-}
-
 export async function getPaymentAllocations(
   businessId?: string
 ): Promise<PaymentAllocation[]> {
-  const bizId = await getActiveBusinessId(businessId);
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
   const allocations = await prisma.paymentAllocation.findMany({
     where: { businessId: bizId },
   });
@@ -63,73 +59,115 @@ export async function getPaymentAllocations(
 export async function getPayments(
   businessId?: string
 ): Promise<PaymentWithParty[]> {
-  const bizId = await getActiveBusinessId(businessId);
-  const payments = await prisma.payment.findMany({
-    where: { businessId: bizId },
-    include: {
-      allocations: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const payments = await dataGetPayments(session, bizId);
 
   return Promise.all(
-    payments.map(async (pay) => {
+    payments.map(async (p) => {
       let partyName = "Unknown Counterparty";
-      const customer = await prisma.customer.findUnique({
-        where: { id: pay.partyId },
-        select: { name: true },
-      });
-      if (customer) {
-        partyName = customer.name;
+      const cust = await getCustomerById(p.partyId, bizId);
+      if (cust) {
+        partyName = cust.name;
       } else {
-        const supplier = await prisma.supplier.findUnique({
-          where: { id: pay.partyId },
-          select: { name: true },
-        });
-        if (supplier) partyName = supplier.name;
+        const supp = await getSupplierById(p.partyId, bizId);
+        if (supp) partyName = supp.name;
       }
 
-      const allocated_total = pay.allocations.reduce(
+      const allocated_total = p.allocations.reduce(
         (sum, a) => sum + Number(a.allocatedAmount),
         0
       );
-      const amountNum = Number(pay.amount);
+
+      const amountNum = Number(p.amount);
       const unallocated = Math.max(0, amountNum - allocated_total);
 
       return {
-        id: pay.id,
-        business_id: pay.businessId,
-        party_id: pay.partyId,
-        party_name: partyName,
+        id: p.id,
+        business_id: p.businessId,
+        party_id: p.partyId,
         amount: amountNum,
-        date: pay.date,
-        mode: pay.mode as Payment["mode"],
-        reference_no: pay.referenceNo,
-        notes: pay.notes,
-        created_at: pay.createdAt.toISOString(),
-        updated_at: pay.updatedAt.toISOString(),
+        date: p.date,
+        mode: p.mode as Payment["mode"],
+        reference_no: p.referenceNo,
+        notes: p.notes,
+        created_at: p.createdAt.toISOString(),
+        updated_at: p.updatedAt.toISOString(),
+        party_name: partyName,
         allocated_total,
         unallocated,
+        allocations: p.allocations.map((a) => ({
+          id: a.id,
+          business_id: a.businessId,
+          payment_id: a.paymentId,
+          invoice_id: a.invoiceId,
+          allocated_amount: Number(a.allocatedAmount),
+          created_at: a.createdAt.toISOString(),
+          invoice_no: a.invoice?.invoiceNo,
+          invoice_total: a.invoice ? Number(a.invoice.total) : undefined,
+        })),
       };
     })
   );
 }
 
-/**
- * Returns all open (unpaid or partially paid) finalized invoices for a specific party directly from Prisma SQLite.
- */
+export async function getPaymentById(
+  id: string,
+  businessId?: string
+): Promise<PaymentWithParty | null> {
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const p = await dataGetPaymentById(session, bizId, id);
+  if (!p) return null;
+
+  let partyName = "Unknown Counterparty";
+  const cust = await getCustomerById(p.partyId, bizId);
+  if (cust) {
+    partyName = cust.name;
+  } else {
+    const supp = await getSupplierById(p.partyId, bizId);
+    if (supp) partyName = supp.name;
+  }
+
+  const allocated_total = p.allocations.reduce(
+    (sum, a) => sum + Number(a.allocatedAmount),
+    0
+  );
+  const amountNum = Number(p.amount);
+
+  return {
+    id: p.id,
+    business_id: p.businessId,
+    party_id: p.partyId,
+    amount: amountNum,
+    date: p.date,
+    mode: p.mode as Payment["mode"],
+    reference_no: p.referenceNo,
+    notes: p.notes,
+    created_at: p.createdAt.toISOString(),
+    updated_at: p.updatedAt.toISOString(),
+    party_name: partyName,
+    allocated_total,
+    unallocated: Math.max(0, amountNum - allocated_total),
+    allocations: p.allocations.map((a) => ({
+      id: a.id,
+      business_id: a.businessId,
+      payment_id: a.paymentId,
+      invoice_id: a.invoiceId,
+      allocated_amount: Number(a.allocatedAmount),
+      created_at: a.createdAt.toISOString(),
+      invoice_no: a.invoice?.invoiceNo,
+      invoice_total: a.invoice ? Number(a.invoice.total) : undefined,
+    })),
+  };
+}
+
 export async function getOpenInvoicesForParty(
-  partyId: string
+  partyId: string,
+  businessId?: string
 ): Promise<OpenInvoiceItem[]> {
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      customerOrSupplierId: partyId,
-      status: "final",
-    },
-    include: {
-      paymentAllocations: true,
-    },
-    orderBy: { invoiceDate: "asc" },
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const invoices = await dataGetInvoices(session, bizId, {
+    status: "final",
+    partyId,
   });
 
   const openInvoices: OpenInvoiceItem[] = [];
@@ -159,7 +197,7 @@ export async function getOpenInvoicesForParty(
 }
 
 /**
- * Atomically records a payment and allocates it across open invoices using Prisma transaction.
+ * Atomically records a payment and allocates it across open invoices via lib/data/payments.ts.
  */
 export async function recordPayment(
   formData: RecordPaymentFormData
@@ -172,134 +210,55 @@ export async function recordPayment(
     };
   }
 
-  const { party_id, amount, date, mode, reference_no, notes, allocations } =
-    parsed.data;
-
-  const customer = await getCustomerById(party_id);
-  const supplier = customer ? null : await getSupplierById(party_id);
-
-  if (!customer && !supplier) {
-    return { success: false, error: "Selected counterparty does not exist." };
-  }
-
-  const bizId = await getActiveBusinessId();
+  const { party_id, amount, date, mode, reference_no, notes, allocations } = parsed.data;
 
   try {
-    const createdPayment = await prisma.$transaction(async (tx) => {
-      let totalAllocated = 0;
+    const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness();
 
-      for (const alloc of allocations) {
-        if (alloc.allocated_amount <= 0) continue;
+    const customer = await getCustomerById(party_id, bizId);
+    const supplier = customer ? null : await getSupplierById(party_id, bizId);
 
-        const inv = await tx.invoice.findUnique({
-          where: { id: alloc.invoice_id },
-          include: { paymentAllocations: true },
-        });
-        if (!inv) {
-          throw new Error(`Invoice ${alloc.invoice_id} does not exist.`);
-        }
+    if (!customer && !supplier) {
+      return { success: false, error: "Selected counterparty does not exist." };
+    }
 
-        if (inv.customerOrSupplierId !== party_id) {
-          throw new Error(
-            `Invoice ${inv.invoiceNo} does not belong to the selected counterparty.`
-          );
-        }
+    const partyType = customer ? "customer" : "supplier";
 
-        if (inv.status !== "final") {
-          throw new Error(
-            `Invoice ${inv.invoiceNo} is in "${inv.status}" state. Only finalized invoices can receive payments.`
-          );
-        }
-
-        const alreadyAllocated = inv.paymentAllocations.reduce(
-          (sum, a) => sum + Number(a.allocatedAmount),
-          0
-        );
-        const remaining = Math.max(
-          0,
-          Math.round((Number(inv.total) - alreadyAllocated) * 100) / 100
-        );
-
-        if (alloc.allocated_amount > remaining + 0.01) {
-          throw new Error(
-            `Allocation of ₹${alloc.allocated_amount} exceeds remaining balance of ₹${remaining} on invoice ${inv.invoiceNo}.`
-          );
-        }
-
-        totalAllocated += alloc.allocated_amount;
-      }
-
-      if (totalAllocated > amount + 0.01) {
-        throw new Error(
-          `Total allocated amount (₹${totalAllocated}) exceeds the payment amount (₹${amount}).`
-        );
-      }
-
-      const payment = await tx.payment.create({
-        data: {
-          businessId: bizId,
-          partyId: party_id,
-          amount,
-          date,
-          mode,
-          referenceNo: reference_no || null,
-          notes: notes || null,
-        },
-      });
-
-      for (const alloc of allocations) {
-        if (alloc.allocated_amount <= 0) continue;
-
-        await tx.paymentAllocation.create({
-          data: {
-            businessId: bizId,
-            paymentId: payment.id,
-            invoiceId: alloc.invoice_id,
-            allocatedAmount: alloc.allocated_amount,
-          },
-        });
-      }
-
-      await tx.ledgerEntry.create({
-        data: {
-          businessId: bizId,
-          partyId: party_id,
-          entryType: customer ? "credit" : "debit",
-          amount,
-          refInvoiceId: allocations[0]?.invoice_id || null,
-          refPaymentId: payment.id,
-          description: `Payment recorded via ${mode.toUpperCase()}${
-            reference_no ? ` (Ref: ${reference_no})` : ""
-          }`,
-          entryDate: date,
-        },
-      });
-
-      return payment;
+    const payment = await dataCreatePayment(session, bizId, {
+      partyId: party_id,
+      partyType,
+      amount,
+      date,
+      mode,
+      referenceNo: reference_no,
+      notes,
+      allocations: allocations
+        .filter((a) => a.allocated_amount > 0)
+        .map((a) => ({
+          invoiceId: a.invoice_id,
+          allocatedAmount: a.allocated_amount,
+        })),
     });
 
     return {
       success: true,
       data: {
-        id: createdPayment.id,
-        business_id: createdPayment.businessId,
-        party_id: createdPayment.partyId,
-        amount: Number(createdPayment.amount),
-        date: createdPayment.date,
-        mode: createdPayment.mode as Payment["mode"],
-        reference_no: createdPayment.referenceNo,
-        notes: createdPayment.notes,
-        created_at: createdPayment.createdAt.toISOString(),
-        updated_at: createdPayment.updatedAt.toISOString(),
+        id: payment.id,
+        business_id: payment.businessId,
+        party_id: payment.partyId,
+        amount: Number(payment.amount),
+        date: payment.date,
+        mode: payment.mode as Payment["mode"],
+        reference_no: payment.referenceNo,
+        notes: payment.notes,
+        created_at: payment.createdAt.toISOString(),
+        updated_at: payment.updatedAt.toISOString(),
       },
     };
   } catch (err: unknown) {
     return {
       success: false,
-      error:
-        err instanceof Error
-          ? err.message
-          : "Payment allocation failed and was rolled back.",
+      error: err instanceof Error ? err.message : "Failed to record payment.",
     };
   }
 }

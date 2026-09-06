@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET() {
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Database unreachable";
-    console.error("Health check failed:", message);
+    logger.error("Health check failed", error, { message });
 
     return NextResponse.json(
       {

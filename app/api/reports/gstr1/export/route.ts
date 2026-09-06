@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-options";
+import { assertBusinessMembership } from "@/lib/auth/authorize";
 import { getGstr1Report } from "@/app/actions/reports";
 import { generateGstr1ExcelWorkbook } from "@/lib/reports/exportGstr1Xlsx";
 import type { Gstr1PeriodFilter } from "@/lib/reports/gstr1";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
+    const businessId = searchParams.get("businessId") || session.user?.businesses?.[0]?.businessId;
+    if (!businessId) {
+      return NextResponse.json({ error: "Missing business context" }, { status: 400 });
+    }
+
+    await assertBusinessMembership(userId, businessId);
+
     const financialYear = searchParams.get("financialYear") || "2024-25";
     const periodType = (searchParams.get("periodType") || "month") as "month" | "quarter";
     const month = searchParams.get("month") || "04";
@@ -18,11 +35,15 @@ export async function GET(req: NextRequest) {
       quarter: periodType === "quarter" ? quarter : undefined,
     };
 
-    const reportData = await getGstr1Report(filter);
+    const reportData = await getGstr1Report(filter, businessId);
+
+    const biz = await prisma.business.findUnique({
+      where: { id: businessId },
+    });
 
     const businessInfo = {
-      name: "GST Ledger Enterprises Pvt Ltd",
-      gstin: "27AAPFU0939F1ZV",
+      name: biz?.name || "Business Enterprise",
+      gstin: biz?.gstin || "N/A",
     };
 
     // Server-side export using exceljs

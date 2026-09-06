@@ -9,51 +9,40 @@ import {
   LedgerEntryWithRunningBalance,
   PartyBalanceSummary,
 } from "@/types";
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth-options";
-
-async function getActiveBusinessId(providedBizId?: string): Promise<string> {
-  if (providedBizId) return providedBizId;
-  try {
-    const session = await getServerSession(authOptions);
-    if (session?.user && (session.user as any).id) {
-      const bu = await prisma.businessUser.findFirst({
-        where: { userId: (session.user as any).id, status: "active" },
-        select: { businessId: true },
-        orderBy: { createdAt: "asc" },
-      });
-      if (bu) return bu.businessId;
-    }
-  } catch {
-    // Fallback if session is unavailable
-  }
-  const first = await prisma.business.findFirst({ select: { id: true } });
-  return first?.id || "biz-1";
-}
+import { getAuthenticatedSessionAndBusiness } from "@/lib/auth/authorize";
+import {
+  getCustomers as dataGetCustomers,
+  getCustomerById as dataGetCustomerById,
+  createCustomer as dataCreateCustomer,
+  updateCustomer as dataUpdateCustomer,
+} from "@/lib/data/customers";
+import {
+  getSuppliers as dataGetSuppliers,
+  getSupplierById as dataGetSupplierById,
+  createSupplier as dataCreateSupplier,
+  updateSupplier as dataUpdateSupplier,
+} from "@/lib/data/suppliers";
+import {
+  getPartyLedger as dataGetPartyLedger,
+  getPartyRunningBalance as dataGetPartyRunningBalance,
+  createLedgerEntry as dataCreateLedgerEntry,
+} from "@/lib/data/ledger";
 
 /**
- * Computes a party's balance summary dynamically at query time by summing ledger_entries.
- * Never reads from or writes to a mutable column.
+ * Computes a party's balance summary dynamically at query time using lib/data/ledger.ts.
  */
 export async function getPartyBalance(
   partyId: string,
-  partyType: "customer" | "supplier" = "customer"
+  partyType: "customer" | "supplier" = "customer",
+  businessId?: string
 ): Promise<PartyBalanceSummary> {
-  const entries = await prisma.ledgerEntry.findMany({
-    where: { partyId },
-  });
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const ledger = await dataGetPartyLedger(session, bizId, partyId);
+  const running = await dataGetPartyRunningBalance(session, bizId, partyId);
 
-  const total_debit = entries
-    .filter((e) => e.entryType === "debit")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
-
-  const total_credit = entries
-    .filter((e) => e.entryType === "credit")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
-
-  const net_balance = Math.round((total_debit - total_credit) * 100) / 100;
-  const dr_cr: "Dr" | "Cr" = net_balance >= 0 ? "Dr" : "Cr";
+  const total_debit = ledger.reduce((sum, e) => sum + e.debit, 0);
+  const total_credit = ledger.reduce((sum, e) => sum + e.credit, 0);
+  const net_balance = running.drCr === "Dr" ? running.balance : -running.balance;
 
   let nature: "receivable" | "payable" | "advance" | "settled" = "settled";
   if (partyType === "customer") {
@@ -69,30 +58,27 @@ export async function getPartyBalance(
     net_balance,
     total_debit,
     total_credit,
-    entry_count: entries.length,
-    dr_cr,
+    entry_count: ledger.length,
+    dr_cr: running.drCr,
     nature,
   };
 }
 
 /**
- * Appends a ledger entry in double-entry bookkeeping directly in Prisma SQLite.
+ * Appends a ledger entry in double-entry bookkeeping via lib/data/ledger.ts.
  */
 export async function addLedgerEntry(
   entry: Omit<LedgerEntry, "id" | "created_at">
 ): Promise<LedgerEntry> {
-  const bizId = await getActiveBusinessId(entry.business_id);
-  const created = await prisma.ledgerEntry.create({
-    data: {
-      businessId: bizId,
-      partyId: entry.party_id,
-      entryType: entry.entry_type,
-      amount: entry.amount,
-      refInvoiceId: entry.ref_invoice_id || null,
-      refPaymentId: entry.ref_payment_id || null,
-      description: entry.description,
-      entryDate: entry.entry_date,
-    },
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(entry.business_id);
+  const created = await dataCreateLedgerEntry(session, bizId, {
+    partyId: entry.party_id,
+    entryType: entry.entry_type,
+    amount: entry.amount,
+    entryDate: entry.entry_date,
+    description: entry.description,
+    refInvoiceId: entry.ref_invoice_id,
+    refPaymentId: entry.ref_payment_id,
   });
 
   return {
@@ -110,20 +96,17 @@ export async function addLedgerEntry(
 }
 
 /**
- * Returns customers with running balance calculated at query time from SQLite.
+ * Returns customers with running balance calculated via lib/data/customers.ts.
  */
 export async function getCustomers(
   businessId?: string
 ): Promise<(Customer & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]> {
-  const bizId = await getActiveBusinessId(businessId);
-  const dbCustomers = await prisma.customer.findMany({
-    where: { businessId: bizId, isActive: true },
-    orderBy: { name: "asc" },
-  });
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const dbCustomers = await dataGetCustomers(session, bizId, { isActive: true });
 
   return Promise.all(
     dbCustomers.map(async (c) => {
-      const summary = await getPartyBalance(c.id, "customer");
+      const summary = await getPartyBalance(c.id, "customer", bizId);
       return {
         id: c.id,
         business_id: c.businessId,
@@ -146,10 +129,12 @@ export async function getCustomers(
   );
 }
 
-export async function getCustomerById(id: string): Promise<Customer | null> {
-  const c = await prisma.customer.findUnique({
-    where: { id },
-  });
+export async function getCustomerById(
+  id: string,
+  businessId?: string
+): Promise<Customer | null> {
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const c = await dataGetCustomerById(session, bizId, id);
   if (!c) return null;
 
   return {
@@ -170,20 +155,17 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
 }
 
 /**
- * Returns suppliers with running balance calculated at query time from SQLite.
+ * Returns suppliers with running balance calculated via lib/data/suppliers.ts.
  */
 export async function getSuppliers(
   businessId?: string
 ): Promise<(Supplier & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]> {
-  const bizId = await getActiveBusinessId(businessId);
-  const dbSuppliers = await prisma.supplier.findMany({
-    where: { businessId: bizId, isActive: true },
-    orderBy: { name: "asc" },
-  });
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const dbSuppliers = await dataGetSuppliers(session, bizId, { isActive: true });
 
   return Promise.all(
     dbSuppliers.map(async (s) => {
-      const summary = await getPartyBalance(s.id, "supplier");
+      const summary = await getPartyBalance(s.id, "supplier", bizId);
       return {
         id: s.id,
         business_id: s.businessId,
@@ -205,10 +187,12 @@ export async function getSuppliers(
   );
 }
 
-export async function getSupplierById(id: string): Promise<Supplier | null> {
-  const s = await prisma.supplier.findUnique({
-    where: { id },
-  });
+export async function getSupplierById(
+  id: string,
+  businessId?: string
+): Promise<Supplier | null> {
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const s = await dataGetSupplierById(session, bizId, id);
   if (!s) return null;
 
   return {
@@ -228,233 +212,188 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 }
 
 /**
- * Computes a party's chronological ledger with running balance calculated at query time.
+ * Computes a party's chronological ledger with running balance via lib/data/ledger.ts.
  */
 export async function getPartyLedgerEntries(
-  partyId: string
+  partyId: string,
+  businessId?: string
 ): Promise<LedgerEntryWithRunningBalance[]> {
-  const entries = await prisma.ledgerEntry.findMany({
-    where: { partyId },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
-  });
+  const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
+  const entries = await dataGetPartyLedger(session, bizId, partyId);
 
-  let running = 0;
-  return entries.map((entry) => {
-    const amountNum = Number(entry.amount);
-    const isDebit = entry.entryType === "debit";
-    const debit = isDebit ? amountNum : 0;
-    const credit = !isDebit ? amountNum : 0;
-
-    // Double-Entry Accounting:
-    // Debit increases running balance; Credit decreases running balance
-    running += debit - credit;
-
-    return {
-      id: entry.id,
-      business_id: entry.businessId,
-      party_id: entry.partyId,
-      entry_type: entry.entryType as "debit" | "credit",
-      amount: amountNum,
-      ref_invoice_id: entry.refInvoiceId,
-      ref_payment_id: entry.refPaymentId,
-      description: entry.description,
-      entry_date: entry.entryDate,
-      created_at: entry.createdAt.toISOString(),
-      debit,
-      credit,
-      running_balance: Math.round(running * 100) / 100,
-      dr_cr: running >= 0 ? "Dr" : "Cr",
-    };
-  });
+  return entries.map((entry) => ({
+    id: entry.id,
+    business_id: entry.businessId,
+    party_id: entry.partyId,
+    entry_type: entry.entryType as "debit" | "credit",
+    amount: Number(entry.amount),
+    ref_invoice_id: entry.refInvoiceId,
+    ref_payment_id: entry.refPaymentId,
+    description: entry.description,
+    entry_date: entry.entryDate,
+    created_at: entry.createdAt.toISOString(),
+    debit: entry.debit,
+    credit: entry.credit,
+    running_balance: entry.runningBalance,
+    dr_cr: entry.drCr,
+  }));
 }
 
+/**
+ * Creates or updates a Customer record via lib/data/customers.ts.
+ */
 export async function saveCustomer(
-  data: PartyFormData,
-  id?: string
+  formData: PartyFormData,
+  customerId?: string,
+  businessId?: string
 ): Promise<{ success: boolean; data?: Customer; error?: string }> {
-  const parsed = partyFormSchema.safeParse(data);
+  const parsed = partyFormSchema.safeParse(formData);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message || "Validation failed",
+      error: parsed.error.issues[0]?.message || "Invalid customer input.",
     };
   }
 
-  if (parsed.data.gstin) {
-    const gstinCheck = validateGSTIN(parsed.data.gstin);
-    if (!gstinCheck.isValid) {
-      return { success: false, error: gstinCheck.error };
+  const { name, gstin, state_code, email, phone, billing_address, shipping_address } = parsed.data;
+
+  if (gstin && gstin.trim() !== "") {
+    const gstinValidation = validateGSTIN(gstin);
+    if (!gstinValidation.isValid) {
+      return { success: false, error: gstinValidation.error };
     }
   }
 
-  const cleanData = parsed.data;
-  const bizId = await getActiveBusinessId();
+  try {
+    const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
 
-  if (id) {
-    const updated = await prisma.customer.update({
-      where: { id },
-      data: {
-        name: cleanData.name,
-        gstin: cleanData.gstin || null,
-        stateCode: cleanData.state_code,
-        email: cleanData.email || null,
-        phone: cleanData.phone || null,
-        billingAddress: cleanData.billing_address || null,
-        pan: cleanData.pan || null,
-      },
-    });
+    const pan = gstin && gstin.length >= 10 ? gstin.substring(2, 12).toUpperCase() : undefined;
+
+    let saved;
+    if (customerId) {
+      saved = await dataUpdateCustomer(session, bizId, customerId, {
+        name,
+        gstin: gstin || null,
+        stateCode: state_code,
+        email: email || null,
+        phone: phone || null,
+        billingAddress: billing_address || null,
+        shippingAddress: shipping_address || null,
+        pan: pan || null,
+      });
+    } else {
+      saved = await dataCreateCustomer(session, bizId, {
+        name,
+        gstin: gstin || null,
+        stateCode: state_code,
+        email: email || null,
+        phone: phone || null,
+        billingAddress: billing_address || null,
+        shippingAddress: shipping_address || null,
+        pan: pan || null,
+      });
+    }
+
     return {
       success: true,
       data: {
-        id: updated.id,
-        business_id: updated.businessId,
-        name: updated.name,
-        gstin: updated.gstin,
-        state_code: updated.stateCode,
-        email: updated.email,
-        phone: updated.phone,
-        billing_address: updated.billingAddress,
-        shipping_address: updated.shippingAddress,
-        pan: updated.pan,
-        is_active: updated.isActive,
-        created_at: updated.createdAt.toISOString(),
-        updated_at: updated.updatedAt.toISOString(),
+        id: saved.id,
+        business_id: saved.businessId,
+        name: saved.name,
+        gstin: saved.gstin,
+        state_code: saved.stateCode,
+        email: saved.email,
+        phone: saved.phone,
+        billing_address: saved.billingAddress,
+        shipping_address: saved.shippingAddress,
+        pan: saved.pan,
+        is_active: saved.isActive,
+        created_at: saved.createdAt.toISOString(),
+        updated_at: saved.updatedAt.toISOString(),
       },
     };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to save customer.",
+    };
   }
-
-  const created = await prisma.customer.create({
-    data: {
-      businessId: bizId,
-      name: cleanData.name,
-      gstin: cleanData.gstin || null,
-      stateCode: cleanData.state_code,
-      email: cleanData.email || null,
-      phone: cleanData.phone || null,
-      billingAddress: cleanData.billing_address || null,
-      shippingAddress: cleanData.shipping_address || null,
-      pan: cleanData.pan || null,
-      isActive: true,
-    },
-  });
-
-  return {
-    success: true,
-    data: {
-      id: created.id,
-      business_id: created.businessId,
-      name: created.name,
-      gstin: created.gstin,
-      state_code: created.stateCode,
-      email: created.email,
-      phone: created.phone,
-      billing_address: created.billingAddress,
-      shipping_address: created.shippingAddress,
-      pan: created.pan,
-      is_active: created.isActive,
-      created_at: created.createdAt.toISOString(),
-      updated_at: created.updatedAt.toISOString(),
-    },
-  };
 }
 
+/**
+ * Creates or updates a Supplier record via lib/data/suppliers.ts.
+ */
 export async function saveSupplier(
-  data: PartyFormData,
-  id?: string
+  formData: PartyFormData,
+  supplierId?: string,
+  businessId?: string
 ): Promise<{ success: boolean; data?: Supplier; error?: string }> {
-  const parsed = partyFormSchema.safeParse(data);
+  const parsed = partyFormSchema.safeParse(formData);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message || "Validation failed",
+      error: parsed.error.issues[0]?.message || "Invalid supplier input.",
     };
   }
 
-  if (parsed.data.gstin) {
-    const gstinCheck = validateGSTIN(parsed.data.gstin);
-    if (!gstinCheck.isValid) {
-      return { success: false, error: gstinCheck.error };
+  const { name, gstin, state_code, email, phone, billing_address } = parsed.data;
+
+  if (gstin && gstin.trim() !== "") {
+    const gstinValidation = validateGSTIN(gstin);
+    if (!gstinValidation.isValid) {
+      return { success: false, error: gstinValidation.error };
     }
   }
 
-  const cleanData = parsed.data;
-  const bizId = await getActiveBusinessId();
+  try {
+    const { session, businessId: bizId } = await getAuthenticatedSessionAndBusiness(businessId);
 
-  if (id) {
-    const updated = await prisma.supplier.update({
-      where: { id },
-      data: {
-        name: cleanData.name,
-        gstin: cleanData.gstin || null,
-        stateCode: cleanData.state_code,
-        email: cleanData.email || null,
-        phone: cleanData.phone || null,
-        billingAddress: cleanData.billing_address || null,
-        pan: cleanData.pan || null,
-      },
-    });
+    const pan = gstin && gstin.length >= 10 ? gstin.substring(2, 12).toUpperCase() : undefined;
+
+    let saved;
+    if (supplierId) {
+      saved = await dataUpdateSupplier(session, bizId, supplierId, {
+        name,
+        gstin: gstin || null,
+        stateCode: state_code,
+        email: email || null,
+        phone: phone || null,
+        billingAddress: billing_address || null,
+        pan: pan || null,
+      });
+    } else {
+      saved = await dataCreateSupplier(session, bizId, {
+        name,
+        gstin: gstin || null,
+        stateCode: state_code,
+        email: email || null,
+        phone: phone || null,
+        billingAddress: billing_address || null,
+        pan: pan || null,
+      });
+    }
+
     return {
       success: true,
       data: {
-        id: updated.id,
-        business_id: updated.businessId,
-        name: updated.name,
-        gstin: updated.gstin,
-        state_code: updated.stateCode,
-        email: updated.email,
-        phone: updated.phone,
-        billing_address: updated.billingAddress,
-        pan: updated.pan,
-        is_active: updated.isActive,
-        created_at: updated.createdAt.toISOString(),
-        updated_at: updated.updatedAt.toISOString(),
+        id: saved.id,
+        business_id: saved.businessId,
+        name: saved.name,
+        gstin: saved.gstin,
+        state_code: saved.stateCode,
+        email: saved.email,
+        phone: saved.phone,
+        billing_address: saved.billingAddress,
+        pan: saved.pan,
+        is_active: saved.isActive,
+        created_at: saved.createdAt.toISOString(),
+        updated_at: saved.updatedAt.toISOString(),
       },
     };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to save supplier.",
+    };
   }
-
-  const created = await prisma.supplier.create({
-    data: {
-      businessId: bizId,
-      name: cleanData.name,
-      gstin: cleanData.gstin || null,
-      stateCode: cleanData.state_code,
-      email: cleanData.email || null,
-      phone: cleanData.phone || null,
-      billingAddress: cleanData.billing_address || null,
-      pan: cleanData.pan || null,
-      isActive: true,
-    },
-  });
-
-  return {
-    success: true,
-    data: {
-      id: created.id,
-      business_id: created.businessId,
-      name: created.name,
-      gstin: created.gstin,
-      state_code: created.stateCode,
-      email: created.email,
-      phone: created.phone,
-      billing_address: created.billingAddress,
-      pan: created.pan,
-      is_active: created.isActive,
-      created_at: created.createdAt.toISOString(),
-      updated_at: created.updatedAt.toISOString(),
-    },
-  };
-}
-
-export async function deleteCustomer(id: string) {
-  await prisma.customer.delete({
-    where: { id },
-  });
-  return { success: true };
-}
-
-export async function deleteSupplier(id: string) {
-  await prisma.supplier.delete({
-    where: { id },
-  });
-  return { success: true };
 }

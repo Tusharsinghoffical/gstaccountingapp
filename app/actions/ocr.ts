@@ -11,6 +11,8 @@ import {
   StructuredInvoiceData,
 } from "@/lib/validation/ocr";
 
+import { getAuthenticatedSessionAndBusiness } from "@/lib/auth/authorize";
+
 export {
   validateInvoiceFile,
   generateScopedInvoiceStoragePath,
@@ -45,7 +47,8 @@ export async function uploadInvoiceDocument(
 ): Promise<UploadResult> {
   try {
     const file = formData.get("file") as File | null;
-    const businessId = (formData.get("businessId") as string) || "biz-1";
+    const providedBusinessId = (formData.get("businessId") as string) || undefined;
+    const { businessId } = await getAuthenticatedSessionAndBusiness(providedBusinessId);
 
     if (!file) {
       return { success: false, error: "No file provided in form data." };

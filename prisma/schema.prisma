@@ -60,7 +60,7 @@ model BusinessUser {
   businessId   String
   userId       String
   role         String   @default("accountant") // "admin" | "accountant" | "auditor"
-  status       String   @default("active")     // "active" | "invited" | "revoked"
+  status       String   @default("active") // "active" | "invited" | "revoked"
   invitedEmail String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -118,24 +118,24 @@ model Supplier {
 }
 
 model Invoice {
-  id                   String              @id @default(uuid())
+  id                   String   @id @default(uuid())
   businessId           String
   type                 String // "sales" | "purchase"
   customerOrSupplierId String
   invoiceNo            String
   invoiceDate          String // YYYY-MM-DD
   dueDate              String? // YYYY-MM-DD
-  status               String              @default("draft") // "draft" | "final" | "cancelled"
-  subtotal             Decimal             @default(0.00)
-  cgst                 Decimal             @default(0.00)
-  sgst                 Decimal             @default(0.00)
-  igst                 Decimal             @default(0.00)
-  total                Decimal             @default(0.00)
+  status               String   @default("draft") // "draft" | "final" | "cancelled"
+  subtotal             Decimal  @default(0.00)
+  cgst                 Decimal  @default(0.00)
+  sgst                 Decimal  @default(0.00)
+  igst                 Decimal  @default(0.00)
+  total                Decimal  @default(0.00)
   financialYear        String // e.g. "2024-25"
   category             String?
   notes                String?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
   items              InvoiceItem[]

@@ -1,21 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-options";
+import { assertBusinessMembership } from "@/lib/auth/authorize";
 import { getAgeingReport } from "@/app/actions/reports";
 import { generateAgeingExcelWorkbook } from "@/lib/reports/exportAgeingXlsx";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
+    const businessId = searchParams.get("businessId") || session.user?.businesses?.[0]?.businessId;
+    if (!businessId) {
+      return NextResponse.json({ error: "Missing business context" }, { status: 400 });
+    }
+
+    await assertBusinessMembership(userId, businessId);
+
     const format = (searchParams.get("format") || "xlsx").toLowerCase();
     const asOfDate = searchParams.get("asOfDate") || undefined;
 
-    const reportData = await getAgeingReport(asOfDate);
+    const reportData = await getAgeingReport(asOfDate, businessId);
+
+    const biz = await prisma.business.findUnique({
+      where: { id: businessId },
+    });
 
     const businessInfo = {
-      name: "GST Ledger Enterprises Pvt Ltd",
-      legal_name: "GST Ledger Enterprises Private Limited",
-      gstin: "27AAPFU0939F1ZV",
-      state_code: "27",
-      address: "101, Maker Chambers V, Nariman Point, Mumbai, Maharashtra 400021",
+      name: biz?.name || "Business Enterprise",
+      legal_name: biz?.legalName || biz?.name || "Business Enterprise",
+      gstin: biz?.gstin || "N/A",
+      state_code: biz?.stateCode || "27",
+      address: biz?.address || "Registered Address",
     };
 
     const dateSlug = reportData.as_of_date || "today";

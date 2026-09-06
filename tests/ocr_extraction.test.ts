@@ -55,7 +55,6 @@ describe("Groq Vision Model Discovery & Selection", () => {
 
   it("returns null on empty or malformed model lists", () => {
     assert.equal(selectGroqVisionModel([]), null);
-    // @ts-ignore - defensive testing for runtime API errors
     assert.equal(selectGroqVisionModel(null), null);
   });
 });

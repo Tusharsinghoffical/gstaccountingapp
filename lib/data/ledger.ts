@@ -53,23 +53,24 @@ export async function getPartyLedger(
     ],
   });
 
-  let running = 0;
+  let running = new Prisma.Decimal(0);
   return entries.map((e) => {
-    const amt = parseFloat(e.amount.toString());
+    const amt = new Prisma.Decimal(e.amount);
     const isDebit = e.entryType === "debit";
-    const debit = isDebit ? amt : 0;
-    const credit = !isDebit ? amt : 0;
+    const debit = isDebit ? amt : new Prisma.Decimal(0);
+    const credit = !isDebit ? amt : new Prisma.Decimal(0);
 
     // Debit increases balance (receivable), credit decreases balance
-    running = running + debit - credit;
+    running = running.add(debit).sub(credit);
+    const isDr = running.gte(0);
 
     return {
       ...e,
       amount: e.amount.toString(),
-      debit,
-      credit,
-      runningBalance: Math.abs(running),
-      drCr: running >= 0 ? "Dr" : "Cr",
+      debit: debit.toNumber(),
+      credit: credit.toNumber(),
+      runningBalance: running.abs().toNumber(),
+      drCr: isDr ? "Dr" : "Cr",
     };
   });
 }
@@ -93,22 +94,22 @@ export async function getPartyRunningBalance(
     },
   });
 
-  let totalDebit = 0;
-  let totalCredit = 0;
+  let totalDebit = new Prisma.Decimal(0);
+  let totalCredit = new Prisma.Decimal(0);
 
   for (const e of entries) {
-    const amt = parseFloat(e.amount.toString());
+    const amt = new Prisma.Decimal(e.amount);
     if (e.entryType === "debit") {
-      totalDebit += amt;
+      totalDebit = totalDebit.add(amt);
     } else {
-      totalCredit += amt;
+      totalCredit = totalCredit.add(amt);
     }
   }
 
-  const net = totalDebit - totalCredit;
+  const net = totalDebit.sub(totalCredit);
   return {
-    balance: Math.abs(net),
-    drCr: net >= 0 ? "Dr" : "Cr",
+    balance: net.abs().toNumber(),
+    drCr: net.gte(0) ? "Dr" : "Cr",
   };
 }
 

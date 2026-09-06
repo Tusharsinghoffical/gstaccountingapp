@@ -73,7 +73,7 @@ export type OcrConfidenceFlag = "high" | "medium" | "low";
  * Prioritizes high-capability vision models (e.g., llama-3.2-11b-vision-preview, llama-3.2-90b-vision-preview).
  */
 export function selectGroqVisionModel(
-  models: GroqModelItem[]
+  models?: GroqModelItem[] | null
 ): string | null {
   if (!Array.isArray(models) || models.length === 0) {
     return null;

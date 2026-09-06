@@ -38,7 +38,7 @@ describe("Financial Mutation Audit Log Engine & Postgres Trigger Logic (Prompt 2
         },
       });
       // updated_at should be completely excluded
-      assert.strictEqual(diff.updated_at, undefined);
+      assert.strictEqual("updated_at" in diff, false);
     });
 
     it("should return empty object when only updated_at changed", () => {
