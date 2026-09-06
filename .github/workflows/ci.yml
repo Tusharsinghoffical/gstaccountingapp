@@ -1,0 +1,64 @@
+name: CI & RLS Penetration Gatekeeper
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  rls-penetration-and-tests:
+    name: Run Automated Tests & Cross-Tenant RLS Penetration Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Audit for AWS Dependencies (Must Return Zero Results)
+        run: |
+          echo "=== Scanning for AWS packages in dependency tree ==="
+          if npm ls --all 2>/dev/null | grep -iE 'aws|amazon|@aws-sdk|aws-sdk'; then
+            echo "❌ FAIL: AWS-related package(s) found in dependency tree. Remove them before merging."
+            exit 1
+          else
+            echo "✅ PASS: No AWS dependencies found."
+          fi
+
+      - name: Audit for AWS Credentials in Source Code
+        run: |
+          echo "=== Scanning source code for AWS credential patterns ==="
+          if grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.mjs" --include="*.json" \
+            -E 'AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|aws-sdk|@aws-sdk|amazonaws\.com|s3\.putObject|new S3\(' \
+            app/ lib/ components/ types/ 2>/dev/null; then
+            echo "❌ FAIL: AWS credential or SDK reference found in source code."
+            exit 1
+          else
+            echo "✅ PASS: No AWS credentials or SDK references in source code."
+          fi
+
+      - name: Run Full Test Suite (Including Cross-Tenant RLS Penetration Matrix)
+        run: npm test
+        env:
+          # Tests run with mock/stub implementations - no real credentials needed
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          GROQ_API_KEY: placeholder-groq-key
+
+      - name: Verify Next.js Production Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          GROQ_API_KEY: placeholder-groq-key
