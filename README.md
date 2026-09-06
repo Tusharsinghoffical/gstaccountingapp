@@ -12,7 +12,7 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 - [Environment Variables](#environment-variables)
 - [Local Development](#local-development)
 - [Supabase Setup](#supabase-setup)
-- [Vercel Deployment](#vercel-deployment)
+- [Render Deployment](#render-deployment)
 - [CI / Testing](#ci--testing)
 - [Security](#security)
 - [AWS Audit Notice](#aws-audit-notice)
@@ -30,7 +30,7 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 | Excel Export | ExcelJS (server-side, Edge Functions) |
 | Testing | Node.js built-in test runner (`node:test`) |
 | CI | GitHub Actions |
-| Hosting | Vercel (frontend) + Supabase (backend, already hosted) |
+| Hosting | Render (frontend) + Supabase (backend, already hosted) |
 
 ---
 
@@ -54,7 +54,7 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  Vercel (Frontend)               │
+│                  Render (Frontend)               │
 │  Next.js 14 App Router                          │
 │  ├── /app/(dashboard)/...  (authenticated pages) │
 │  ├── /app/actions/...      (Server Actions)      │
@@ -215,32 +215,49 @@ In Supabase Dashboard → Authentication → Settings:
 
 ---
 
-## Vercel Deployment
+## Render Deployment
 
-### One-Click Deploy
+### One-Click via Blueprint
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Tusharsinghoffical/gstaccountingapp)
+This repo includes a [`render.yaml`](render.yaml) blueprint. Render auto-detects it:
 
-### Manual Deploy
+1. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**
+2. Connect your GitHub account and select **`gstaccountingapp`**
+3. Render reads `render.yaml` and creates a **Web Service** automatically
+4. Fill in the 4 secret environment variables when prompted (see below)
+5. Click **Apply** — your app is live in ~3 minutes
+
+### Setting Environment Variables in Render
+
+In the Render Dashboard → your service → **Environment**:
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxx.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | your service role key |
+| `GROQ_API_KEY` | `gsk_...` |
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` and `GROQ_API_KEY` are server-only secrets — never prefix them with `NEXT_PUBLIC_`.
+
+### Manual Deploy via Render CLI
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
+# Install Render CLI
+npm i -g @render-com/cli
 
-# Deploy to Vercel (follow prompts)
-vercel
-
-# Or link to existing project and deploy
-vercel --prod
+# Deploy
+render up
 ```
 
 ### Post-Deploy Checklist
 
-- [ ] All 4 environment variables set in Vercel project settings
-- [ ] Supabase Auth Site URL updated to production Vercel URL
+- [ ] All 4 environment variables set in Render service settings
+- [ ] Supabase Auth **Site URL** updated to your Render service URL (e.g. `https://gst-ledger.onrender.com`)
+- [ ] Supabase Auth **Additional redirect URLs** includes the Render URL
 - [ ] All 10 database migrations applied in Supabase
-- [ ] All 4 Edge Functions deployed to Supabase
-- [ ] `invoice-documents` storage bucket created
+- [ ] All Edge Functions deployed to Supabase
+- [ ] `invoice-documents` storage bucket created (private)
 - [ ] Verify `/` → redirects to login for unauthenticated users
 - [ ] Verify admin-only routes (`/settings/users`, `/settings/audit-log`) are blocked for non-admin roles
 
@@ -329,7 +346,7 @@ A full audit was performed against:
 
 Infrastructure is exclusively:
 - **Supabase** (PostgreSQL, Auth, Storage, Edge Functions)
-- **Vercel** (Frontend hosting)
+- **Render** (Frontend hosting)
 - **Groq** (AI/OCR API)
 
 ---
