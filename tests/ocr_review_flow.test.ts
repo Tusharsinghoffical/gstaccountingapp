@@ -190,7 +190,7 @@ describe("OCR Review & Confirm Screen: Unified Write Path & Ledger Integration (
     assert.equal(entry.entry_type, "credit");
     assert.equal(entry.amount, 66080);
     assert.equal(entry.ref_invoice_id, inv.id);
-    assert.ok(entry.description.includes("Purchase Bill"));
+    assert.ok(entry.description?.includes("Purchase Bill"));
   });
 
   it("calculates intra-state CGST + SGST split when supplier is in the same state (Maharashtra 27)", () => {

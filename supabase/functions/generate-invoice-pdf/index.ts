@@ -1,5 +1,5 @@
 // deno-lint-ignore-file
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+/// <reference path="../deno.d.ts" />
 // ==============================================================================
 // Supabase Edge Function: Generate GST-Compliant Invoice PDF
 // Reference: 05-BUILD-PROMPTS.md (Prompt 13)

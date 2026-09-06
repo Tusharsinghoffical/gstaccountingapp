@@ -1,5 +1,5 @@
 // deno-lint-ignore-file
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+/// <reference path="../deno.d.ts" />
 // ==============================================================================
 // Supabase Edge Function: Structured Invoice Data Extraction via Groq LLM
 // Reference: 05-BUILD-PROMPTS.md (Prompt 18)

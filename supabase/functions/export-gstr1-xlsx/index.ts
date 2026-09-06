@@ -1,5 +1,5 @@
 // deno-lint-ignore-file
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+/// <reference path="../deno.d.ts" />
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import ExcelJS from "https://esm.sh/exceljs@4.4.0";
 
