@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: gst-ledger
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npx prisma db push && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.14.0
+      - key: DATABASE_URL
+        value: "file:../data/app.db?connection_limit=1&busy_timeout=30000"
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
