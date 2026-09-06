@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output: copies only the minimal required files into
+  // .next/standalone — dramatically reduces Docker image size.
+  output: "standalone",
   env: {
-    // Opt out of Next.js telemetry in all environments
     NEXT_TELEMETRY_DISABLED: "1",
   },
 };

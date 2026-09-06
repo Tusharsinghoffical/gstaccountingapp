@@ -1,0 +1,32 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log*
+
+# Test files — not needed in image
+tests/
+coverage/
+
+# Local env — NEVER bake secrets into an image
+.env
+.env.*
+!.env.local.example
+
+# Editor / OS
+.DS_Store
+*.pem
+.vscode/
+.idea/
+
+# Supabase local dev (migrations run separately)
+supabase/.branches
+supabase/.temp
+
+# Docs
+*.md
+01-PRD.md
+02-REQUIREMENTS.md
+03-ARCHITECTURE.md
+04-UIUX-PLAN.md
+05-BUILD-PROMPTS.md

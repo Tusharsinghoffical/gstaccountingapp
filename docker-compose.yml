@@ -1,0 +1,42 @@
+# ============================================================================
+# GST Ledger — Docker Compose
+# ============================================================================
+# Local development / testing with Docker.
+#
+# Usage:
+#   1. Copy .env.local.example to .env.local and fill in your credentials
+#   2. docker compose up --build
+#   3. Open http://localhost:3000
+#
+# The container reads environment variables from .env.local at runtime.
+# NEXT_PUBLIC_ vars are also baked in at build time via build args.
+# ============================================================================
+
+services:
+  gst-ledger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Pass NEXT_PUBLIC_ vars as build args so they are embedded
+        # in the static JS bundle (required by Next.js)
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: gst-ledger:latest
+    container_name: gst-ledger
+    ports:
+      - "3000:3000"
+    environment:
+      # Runtime-only secrets — never baked into the image
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
