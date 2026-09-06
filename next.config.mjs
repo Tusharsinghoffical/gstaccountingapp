@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output: copies only the minimal required files into
-  // .next/standalone — dramatically reduces Docker image size.
-  output: "standalone",
+  // Use standalone output for Docker, standard output for Render/local
+  output: process.env.DOCKER_BUILD ? "standalone" : undefined,
   env: {
     NEXT_TELEMETRY_DISABLED: "1",
   },
