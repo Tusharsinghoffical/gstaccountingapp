@@ -319,12 +319,11 @@ export class LocalDB {
     return load<LedgerEntry>(KEYS.ledger_entries, []);
   }
 
-  static addLedgerEntry(entry: Omit<LedgerEntry, "id" | "created_at" | "updated_at">): LedgerEntry {
+  static addLedgerEntry(entry: Omit<LedgerEntry, "id" | "created_at">): LedgerEntry {
     const full: LedgerEntry = {
       ...entry,
       id: generateId("le"),
       created_at: nowISO(),
-      updated_at: nowISO(),
     };
     const list = this.getLedgerEntries();
     list.push(full);
@@ -349,8 +348,8 @@ export class LocalDB {
     action: AuditAction,
     table: string,
     recordId: string,
-    before: Record<string, unknown> | null,
-    after: Record<string, unknown>,
+    before: unknown,
+    after: unknown,
   ): void {
     const entry: LocalAuditLogEntry = {
       id: generateId("audit"),
@@ -360,7 +359,7 @@ export class LocalDB {
       action,
       table_name: table,
       record_id: recordId,
-      diff: before ? { before, after } : { after },
+      diff: (before ? { before, after } : { after }) as Record<string, unknown>,
       created_at: nowISO(),
     };
     const list = load<LocalAuditLogEntry>(KEYS.audit_log, []);
