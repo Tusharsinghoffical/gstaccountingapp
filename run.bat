@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableDelayedExpansion
+cd /d "%~dp0"
 title GST Ledger — Quick Launcher
 
 REM ============================================================================
@@ -46,7 +46,7 @@ echo ===========================================================================
 echo   GST Ledger — Accounting Management Platform
 echo ============================================================================
 echo.
-echo   [1] Run Locally with Node.js (npm run dev)    - [Fastest / Recommended]
+echo   [1] Run Locally with Node.js (npm run dev)    - [Instant / Recommended]
 echo   [2] Run with Docker (Build + Start Container)
 echo   [3] Run Automated Test Suite (npm test)
 echo   [4] Build Production Application (npm run build)
@@ -55,29 +55,27 @@ echo   [6] View Docker Container Logs
 echo   [7] Exit
 echo.
 echo ============================================================================
-set /p CHOICE="Select an option (1-7) [Default: 1]: "
+choice /C 1234567 /N /M "Press a number (1-7) on your keyboard: "
 
-if "%CHOICE%"==""  goto RUN_LOCAL
-if "%CHOICE%"=="1" goto RUN_LOCAL
-if "%CHOICE%"=="2" goto DOCKER_BUILD_AND_START
-if "%CHOICE%"=="3" goto RUN_TESTS
-if "%CHOICE%"=="4" goto RUN_BUILD
-if "%CHOICE%"=="5" goto DOCKER_STOP
-if "%CHOICE%"=="6" goto DOCKER_LOGS
-if "%CHOICE%"=="7" goto QUIT
+if errorlevel 7 goto QUIT
+if errorlevel 6 goto DOCKER_LOGS
+if errorlevel 5 goto DOCKER_STOP
+if errorlevel 4 goto RUN_BUILD
+if errorlevel 3 goto RUN_TESTS
+if errorlevel 2 goto DOCKER_BUILD_AND_START
+if errorlevel 1 goto RUN_LOCAL
 
-echo.
-echo [ERROR] Invalid choice. Please select 1 through 7.
-timeout /t 2 >nul
 goto MENU
 
 REM ── Option 1: Run Locally ───────────────────────────────────────────────────
 :RUN_LOCAL
 echo.
 echo ============================================================================
-echo   Starting GST Ledger locally on http://localhost:3000 ...
+echo   Starting GST Ledger locally on Next.js dev server...
 echo ============================================================================
-echo   (Press Ctrl+C at any time to stop)
+echo   Once compiled, open your browser at: http://localhost:3000
+echo   (To stop server, press Ctrl+C)
+echo ============================================================================
 echo.
 
 REM Check node_modules
@@ -91,7 +89,6 @@ if not exist "node_modules\" (
     )
 )
 
-start "" http://localhost:3000
 call npm run dev
 if errorlevel 1 (
     echo.
@@ -107,8 +104,13 @@ echo [GST Ledger] Checking Docker service...
 docker info >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo [ERROR] Docker is not running or not installed!
-    echo         Please start Docker Desktop, or choose Option [1] to run without Docker.
+    echo ============================================================================
+    echo [ERROR] Docker Desktop is not running or not started!
+    echo ============================================================================
+    echo  1. Please open "Docker Desktop" from your Windows Start menu.
+    echo  2. Wait until Docker Desktop shows "Engine running" (green icon).
+    echo  3. OR press Option [1] to run locally with Node.js without Docker!
+    echo ============================================================================
     echo.
     pause
     goto MENU
