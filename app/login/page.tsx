@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -9,8 +10,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
-  const [email, setEmail] = useState("admin@gstledger.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +29,7 @@ function LoginForm() {
       });
 
       if (res?.error) {
-        setError("Invalid email or password. You can also click 'Use Demo Account' below.");
+        setError(res.error || "Invalid email or password.");
       } else {
         router.push(callbackUrl);
         router.refresh();
@@ -38,11 +39,6 @@ function LoginForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickLogin = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
   };
 
   return (
@@ -94,46 +90,44 @@ function LoginForm() {
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
-        >
-          {loading ? "Authenticating..." : "Sign In →"}
-        </button>
-      </form>
+          <div className="flex items-center justify-between text-xs pt-1">
+            <Link
+              href="/forgot-password"
+              className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            >
+              Forgot password?
+            </Link>
+            <Link
+              href="/verify-email"
+              className="text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              Resend verification email
+            </Link>
+          </div>
 
-      <div className="border-t border-slate-100 pt-4 space-y-2">
-        <p className="text-2xs font-semibold uppercase tracking-wider text-slate-400 text-center">
-          Quick Fill Demo Credentials
-        </p>
-        <div className="grid grid-cols-2 gap-2">
           <button
-            type="button"
-            onClick={() => handleQuickLogin("admin@gstledger.local", "admin123")}
-            className="p-2 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors text-center"
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            Admin (Full Access)
+            {loading ? "Authenticating..." : "Sign In →"}
           </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLogin("accountant@gstledger.local", "acc123")}
-            className="p-2 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors text-center"
-          >
-            Accountant (Staff)
-          </button>
+        </form>
+
+        <div className="border-t border-slate-100 pt-4 text-center text-xs text-slate-500 space-y-2">
+          <div>
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="font-semibold text-indigo-600 hover:text-indigo-800">
+              Create a free account
+            </Link>
+          </div>
+          <div>
+            <Link href="/" className="text-slate-400 hover:text-slate-600 transition-colors text-2xs">
+              ← Back to Product Overview
+            </Link>
+          </div>
         </div>
       </div>
-
-      <div className="text-center pt-2">
-        <a
-          href="/"
-          className="text-xs text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          ← Back to Overview
-        </a>
-      </div>
-    </div>
   );
 }
 

@@ -9,159 +9,28 @@ import {
   LedgerEntryWithRunningBalance,
   PartyBalanceSummary,
 } from "@/types";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-options";
 
-// In-memory persistent demo store for parties (NEVER stores mutable balance)
-let demoCustomers: Customer[] = [
-  {
-    id: "cust-1",
-    business_id: "biz-1",
-    name: "Bharat Enterprises",
-    gstin: "27AAPFU0939F1ZV",
-    state_code: "27",
-    email: "accounts@bharatent.in",
-    phone: "9820012345",
-    billing_address: "Plot 42, MIDC Industrial Area, Pune, MH 411018",
-    pan: "AAPFU0939F",
-    is_active: true,
-    created_at: "2024-04-01T10:00:00Z",
-    updated_at: "2024-04-01T10:00:00Z",
-  },
-  {
-    id: "cust-2",
-    business_id: "biz-1",
-    name: "Mahalaxmi Trading Co",
-    gstin: "29AABCU9603R1ZK",
-    state_code: "29",
-    email: "mahalaxmi.traders@gmail.com",
-    phone: "9845098765",
-    billing_address: "Shop 12, Commercial Street, Bengaluru, KA 560001",
-    pan: "AABCU9603R",
-    is_active: true,
-    created_at: "2024-04-05T11:30:00Z",
-    updated_at: "2024-04-05T11:30:00Z",
-  },
-  {
-    id: "cust-3",
-    business_id: "biz-1",
-    name: "Local Retail Walk-in Customer",
-    gstin: null,
-    state_code: "27",
-    email: null,
-    phone: "9988776655",
-    billing_address: "Mumbai Central",
-    pan: null,
-    is_active: true,
-    created_at: "2024-04-10T14:00:00Z",
-    updated_at: "2024-04-10T14:00:00Z",
-  },
-];
-
-let demoSuppliers: Supplier[] = [
-  {
-    id: "supp-1",
-    business_id: "biz-1",
-    name: "Tata Steel Logistics & Supply",
-    gstin: "27AAACT2828Q1ZU",
-    state_code: "27",
-    email: "billing@tatasteel-logistics.com",
-    phone: "9819011223",
-    billing_address: "Bombay House, Homi Mody Street, Mumbai 400001",
-    pan: "AAACT2828Q",
-    is_active: true,
-    created_at: "2024-04-02T09:00:00Z",
-    updated_at: "2024-04-02T09:00:00Z",
-  },
-  {
-    id: "supp-2",
-    business_id: "biz-1",
-    name: "Southern Paper Mills Ltd",
-    gstin: "33AABCS1429B1Z8",
-    state_code: "33",
-    email: "sales@southernpaper.in",
-    phone: "9444055667",
-    billing_address: "Industrial Estate, Guindy, Chennai, TN 600032",
-    pan: "AABCS1429B",
-    is_active: true,
-    created_at: "2024-04-04T12:00:00Z",
-    updated_at: "2024-04-04T12:00:00Z",
-  },
-];
-
-// Double-entry event log (Balances are strictly derived on-the-fly from this log)
-let demoLedger: LedgerEntry[] = [
-  {
-    id: "led-1",
-    business_id: "biz-1",
-    party_id: "cust-1",
-    entry_type: "debit",
-    amount: 145000,
-    ref_invoice_id: "inv-1",
-    ref_payment_id: null,
-    description: "Tax Invoice INV/2024-25/0001 (Sales)",
-    entry_date: "2024-04-15",
-    created_at: "2024-04-15T10:00:00Z",
-  },
-  {
-    id: "led-pay-1",
-    business_id: "biz-1",
-    party_id: "cust-1",
-    entry_type: "credit",
-    amount: 100000,
-    ref_invoice_id: null,
-    ref_payment_id: "pay-1",
-    description: "Bank Transfer Receipt - Ref HDFC998822",
-    entry_date: "2024-04-20",
-    created_at: "2024-04-20T10:00:00Z",
-  },
-  {
-    id: "led-2",
-    business_id: "biz-1",
-    party_id: "cust-2",
-    entry_type: "debit",
-    amount: 138500,
-    ref_invoice_id: "inv-2",
-    ref_payment_id: null,
-    description: "Tax Invoice INV/2024-25/0002 (Sales)",
-    entry_date: "2024-04-16",
-    created_at: "2024-04-16T11:00:00Z",
-  },
-  {
-    id: "led-3",
-    business_id: "biz-1",
-    party_id: "cust-2",
-    entry_type: "credit",
-    amount: 50000,
-    ref_invoice_id: null,
-    ref_payment_id: "pay-demo-1",
-    description: "NEFT Payment received - Ref UTR98214",
-    entry_date: "2024-04-18",
-    created_at: "2024-04-18T15:30:00Z",
-  },
-  {
-    id: "led-4",
-    business_id: "biz-1",
-    party_id: "supp-1",
-    entry_type: "credit",
-    amount: 236000,
-    ref_invoice_id: "inv-3",
-    ref_payment_id: null,
-    description: "Purchase Invoice PUR/2024-25/0019",
-    entry_date: "2024-04-17",
-    created_at: "2024-04-17T12:00:00Z",
-  },
-  {
-    id: "led-5",
-    business_id: "biz-1",
-    party_id: "supp-2",
-    entry_type: "credit",
-    amount: 64000,
-    ref_invoice_id: "inv-4",
-    ref_payment_id: null,
-    description: "Purchase Invoice PUR/2024-25/0004",
-    entry_date: "2024-04-04",
-    created_at: "2024-04-04T12:00:00Z",
-  },
-];
+async function getActiveBusinessId(providedBizId?: string): Promise<string> {
+  if (providedBizId) return providedBizId;
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user && (session.user as any).id) {
+      const bu = await prisma.businessUser.findFirst({
+        where: { userId: (session.user as any).id, status: "active" },
+        select: { businessId: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (bu) return bu.businessId;
+    }
+  } catch {
+    // Fallback if session is unavailable
+  }
+  const first = await prisma.business.findFirst({ select: { id: true } });
+  return first?.id || "biz-1";
+}
 
 /**
  * Computes a party's balance summary dynamically at query time by summing ledger_entries.
@@ -171,15 +40,17 @@ export async function getPartyBalance(
   partyId: string,
   partyType: "customer" | "supplier" = "customer"
 ): Promise<PartyBalanceSummary> {
-  const entries = demoLedger.filter((e) => e.party_id === partyId);
+  const entries = await prisma.ledgerEntry.findMany({
+    where: { partyId },
+  });
 
   const total_debit = entries
-    .filter((e) => e.entry_type === "debit")
-    .reduce((sum, e) => sum + e.amount, 0);
+    .filter((e) => e.entryType === "debit")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
 
   const total_credit = entries
-    .filter((e) => e.entry_type === "credit")
-    .reduce((sum, e) => sum + e.amount, 0);
+    .filter((e) => e.entryType === "credit")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
 
   const net_balance = Math.round((total_debit - total_credit) * 100) / 100;
   const dr_cr: "Dr" | "Cr" = net_balance >= 0 ? "Dr" : "Cr";
@@ -189,7 +60,6 @@ export async function getPartyBalance(
     if (net_balance > 0) nature = "receivable";
     else if (net_balance < 0) nature = "advance";
   } else {
-    // For supplier: net_balance < 0 means credit > debit (we owe supplier)
     if (net_balance < 0) nature = "payable";
     else if (net_balance > 0) nature = "advance";
   }
@@ -206,31 +76,68 @@ export async function getPartyBalance(
 }
 
 /**
- * Appends a ledger entry in double-entry bookkeeping.
+ * Appends a ledger entry in double-entry bookkeeping directly in Prisma SQLite.
  */
 export async function addLedgerEntry(
   entry: Omit<LedgerEntry, "id" | "created_at">
 ): Promise<LedgerEntry> {
-  const newEntry: LedgerEntry = {
-    ...entry,
-    id: `led-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    created_at: new Date().toISOString(),
+  const bizId = await getActiveBusinessId(entry.business_id);
+  const created = await prisma.ledgerEntry.create({
+    data: {
+      businessId: bizId,
+      partyId: entry.party_id,
+      entryType: entry.entry_type,
+      amount: entry.amount,
+      refInvoiceId: entry.ref_invoice_id || null,
+      refPaymentId: entry.ref_payment_id || null,
+      description: entry.description,
+      entryDate: entry.entry_date,
+    },
+  });
+
+  return {
+    id: created.id,
+    business_id: created.businessId,
+    party_id: created.partyId,
+    entry_type: created.entryType as "debit" | "credit",
+    amount: Number(created.amount),
+    ref_invoice_id: created.refInvoiceId,
+    ref_payment_id: created.refPaymentId,
+    description: created.description,
+    entry_date: created.entryDate,
+    created_at: created.createdAt.toISOString(),
   };
-  demoLedger.push(newEntry);
-  return newEntry;
 }
 
 /**
- * Returns customers with running balance calculated at query time.
+ * Returns customers with running balance calculated at query time from SQLite.
  */
-export async function getCustomers(): Promise<
-  (Customer & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]
-> {
+export async function getCustomers(
+  businessId?: string
+): Promise<(Customer & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]> {
+  const bizId = await getActiveBusinessId(businessId);
+  const dbCustomers = await prisma.customer.findMany({
+    where: { businessId: bizId, isActive: true },
+    orderBy: { name: "asc" },
+  });
+
   return Promise.all(
-    demoCustomers.map(async (c) => {
+    dbCustomers.map(async (c) => {
       const summary = await getPartyBalance(c.id, "customer");
       return {
-        ...c,
+        id: c.id,
+        business_id: c.businessId,
+        name: c.name,
+        gstin: c.gstin,
+        state_code: c.stateCode,
+        email: c.email,
+        phone: c.phone,
+        billing_address: c.billingAddress,
+        shipping_address: c.shippingAddress,
+        pan: c.pan,
+        is_active: c.isActive,
+        created_at: c.createdAt.toISOString(),
+        updated_at: c.updatedAt.toISOString(),
         balance: Math.abs(summary.net_balance),
         dr_cr: summary.dr_cr,
         nature: summary.nature,
@@ -240,20 +147,56 @@ export async function getCustomers(): Promise<
 }
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
-  return demoCustomers.find((c) => c.id === id) || null;
+  const c = await prisma.customer.findUnique({
+    where: { id },
+  });
+  if (!c) return null;
+
+  return {
+    id: c.id,
+    business_id: c.businessId,
+    name: c.name,
+    gstin: c.gstin,
+    state_code: c.stateCode,
+    email: c.email,
+    phone: c.phone,
+    billing_address: c.billingAddress,
+    shipping_address: c.shippingAddress,
+    pan: c.pan,
+    is_active: c.isActive,
+    created_at: c.createdAt.toISOString(),
+    updated_at: c.updatedAt.toISOString(),
+  };
 }
 
 /**
- * Returns suppliers with running balance calculated at query time.
+ * Returns suppliers with running balance calculated at query time from SQLite.
  */
-export async function getSuppliers(): Promise<
-  (Supplier & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]
-> {
+export async function getSuppliers(
+  businessId?: string
+): Promise<(Supplier & { balance: number; dr_cr: "Dr" | "Cr"; nature: string })[]> {
+  const bizId = await getActiveBusinessId(businessId);
+  const dbSuppliers = await prisma.supplier.findMany({
+    where: { businessId: bizId, isActive: true },
+    orderBy: { name: "asc" },
+  });
+
   return Promise.all(
-    demoSuppliers.map(async (s) => {
+    dbSuppliers.map(async (s) => {
       const summary = await getPartyBalance(s.id, "supplier");
       return {
-        ...s,
+        id: s.id,
+        business_id: s.businessId,
+        name: s.name,
+        gstin: s.gstin,
+        state_code: s.stateCode,
+        email: s.email,
+        phone: s.phone,
+        billing_address: s.billingAddress,
+        pan: s.pan,
+        is_active: s.isActive,
+        created_at: s.createdAt.toISOString(),
+        updated_at: s.updatedAt.toISOString(),
         balance: Math.abs(summary.net_balance),
         dr_cr: summary.dr_cr,
         nature: summary.nature,
@@ -263,43 +206,60 @@ export async function getSuppliers(): Promise<
 }
 
 export async function getSupplierById(id: string): Promise<Supplier | null> {
-  return demoSuppliers.find((s) => s.id === id) || null;
+  const s = await prisma.supplier.findUnique({
+    where: { id },
+  });
+  if (!s) return null;
+
+  return {
+    id: s.id,
+    business_id: s.businessId,
+    name: s.name,
+    gstin: s.gstin,
+    state_code: s.stateCode,
+    email: s.email,
+    phone: s.phone,
+    billing_address: s.billingAddress,
+    pan: s.pan,
+    is_active: s.isActive,
+    created_at: s.createdAt.toISOString(),
+    updated_at: s.updatedAt.toISOString(),
+  };
 }
 
 /**
  * Computes a party's chronological ledger with running balance calculated at query time.
- * Ordered by entry_date ASC, then created_at ASC, then id ASC.
  */
 export async function getPartyLedgerEntries(
   partyId: string
 ): Promise<LedgerEntryWithRunningBalance[]> {
-  const entries = demoLedger.filter((entry) => entry.party_id === partyId);
-
-  // Chronological sort
-  const sorted = [...entries].sort((a, b) => {
-    const dateDiff =
-      new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime();
-    if (dateDiff !== 0) return dateDiff;
-
-    const timeDiff =
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    if (timeDiff !== 0) return timeDiff;
-
-    return a.id.localeCompare(b.id);
+  const entries = await prisma.ledgerEntry.findMany({
+    where: { partyId },
+    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
 
   let running = 0;
-  return sorted.map((entry) => {
-    const isDebit = entry.entry_type === "debit";
-    const debit = isDebit ? entry.amount : 0;
-    const credit = !isDebit ? entry.amount : 0;
+  return entries.map((entry) => {
+    const amountNum = Number(entry.amount);
+    const isDebit = entry.entryType === "debit";
+    const debit = isDebit ? amountNum : 0;
+    const credit = !isDebit ? amountNum : 0;
 
-    // Standard Double-Entry Accounting:
+    // Double-Entry Accounting:
     // Debit increases running balance; Credit decreases running balance
     running += debit - credit;
 
     return {
-      ...entry,
+      id: entry.id,
+      business_id: entry.businessId,
+      party_id: entry.partyId,
+      entry_type: entry.entryType as "debit" | "credit",
+      amount: amountNum,
+      ref_invoice_id: entry.refInvoiceId,
+      ref_payment_id: entry.refPaymentId,
+      description: entry.description,
+      entry_date: entry.entryDate,
+      created_at: entry.createdAt.toISOString(),
       debit,
       credit,
       running_balance: Math.round(running * 100) / 100,
@@ -328,43 +288,74 @@ export async function saveCustomer(
   }
 
   const cleanData = parsed.data;
+  const bizId = await getActiveBusinessId();
 
   if (id) {
-    const idx = demoCustomers.findIndex((c) => c.id === id);
-    if (idx !== -1) {
-      demoCustomers[idx] = {
-        ...demoCustomers[idx],
+    const updated = await prisma.customer.update({
+      where: { id },
+      data: {
         name: cleanData.name,
         gstin: cleanData.gstin || null,
-        state_code: cleanData.state_code,
+        stateCode: cleanData.state_code,
         email: cleanData.email || null,
         phone: cleanData.phone || null,
-        billing_address: cleanData.billing_address || null,
+        billingAddress: cleanData.billing_address || null,
         pan: cleanData.pan || null,
-        updated_at: new Date().toISOString(),
-      };
-      return { success: true, data: demoCustomers[idx] };
-    }
+      },
+    });
+    return {
+      success: true,
+      data: {
+        id: updated.id,
+        business_id: updated.businessId,
+        name: updated.name,
+        gstin: updated.gstin,
+        state_code: updated.stateCode,
+        email: updated.email,
+        phone: updated.phone,
+        billing_address: updated.billingAddress,
+        shipping_address: updated.shippingAddress,
+        pan: updated.pan,
+        is_active: updated.isActive,
+        created_at: updated.createdAt.toISOString(),
+        updated_at: updated.updatedAt.toISOString(),
+      },
+    };
   }
 
-  const newCustomer: Customer = {
-    id: `cust-${Date.now()}`,
-    business_id: "biz-1",
-    name: cleanData.name,
-    gstin: cleanData.gstin || null,
-    state_code: cleanData.state_code,
-    email: cleanData.email || null,
-    phone: cleanData.phone || null,
-    billing_address: cleanData.billing_address || null,
-    shipping_address: cleanData.shipping_address || null,
-    pan: cleanData.pan || null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const created = await prisma.customer.create({
+    data: {
+      businessId: bizId,
+      name: cleanData.name,
+      gstin: cleanData.gstin || null,
+      stateCode: cleanData.state_code,
+      email: cleanData.email || null,
+      phone: cleanData.phone || null,
+      billingAddress: cleanData.billing_address || null,
+      shippingAddress: cleanData.shipping_address || null,
+      pan: cleanData.pan || null,
+      isActive: true,
+    },
+  });
 
-  demoCustomers.unshift(newCustomer);
-  return { success: true, data: newCustomer };
+  return {
+    success: true,
+    data: {
+      id: created.id,
+      business_id: created.businessId,
+      name: created.name,
+      gstin: created.gstin,
+      state_code: created.stateCode,
+      email: created.email,
+      phone: created.phone,
+      billing_address: created.billingAddress,
+      shipping_address: created.shippingAddress,
+      pan: created.pan,
+      is_active: created.isActive,
+      created_at: created.createdAt.toISOString(),
+      updated_at: created.updatedAt.toISOString(),
+    },
+  };
 }
 
 export async function saveSupplier(
@@ -387,50 +378,83 @@ export async function saveSupplier(
   }
 
   const cleanData = parsed.data;
+  const bizId = await getActiveBusinessId();
 
   if (id) {
-    const idx = demoSuppliers.findIndex((s) => s.id === id);
-    if (idx !== -1) {
-      demoSuppliers[idx] = {
-        ...demoSuppliers[idx],
+    const updated = await prisma.supplier.update({
+      where: { id },
+      data: {
         name: cleanData.name,
         gstin: cleanData.gstin || null,
-        state_code: cleanData.state_code,
+        stateCode: cleanData.state_code,
         email: cleanData.email || null,
         phone: cleanData.phone || null,
-        billing_address: cleanData.billing_address || null,
+        billingAddress: cleanData.billing_address || null,
         pan: cleanData.pan || null,
-        updated_at: new Date().toISOString(),
-      };
-      return { success: true, data: demoSuppliers[idx] };
-    }
+      },
+    });
+    return {
+      success: true,
+      data: {
+        id: updated.id,
+        business_id: updated.businessId,
+        name: updated.name,
+        gstin: updated.gstin,
+        state_code: updated.stateCode,
+        email: updated.email,
+        phone: updated.phone,
+        billing_address: updated.billingAddress,
+        pan: updated.pan,
+        is_active: updated.isActive,
+        created_at: updated.createdAt.toISOString(),
+        updated_at: updated.updatedAt.toISOString(),
+      },
+    };
   }
 
-  const newSupplier: Supplier = {
-    id: `supp-${Date.now()}`,
-    business_id: "biz-1",
-    name: cleanData.name,
-    gstin: cleanData.gstin || null,
-    state_code: cleanData.state_code,
-    email: cleanData.email || null,
-    phone: cleanData.phone || null,
-    billing_address: cleanData.billing_address || null,
-    pan: cleanData.pan || null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const created = await prisma.supplier.create({
+    data: {
+      businessId: bizId,
+      name: cleanData.name,
+      gstin: cleanData.gstin || null,
+      stateCode: cleanData.state_code,
+      email: cleanData.email || null,
+      phone: cleanData.phone || null,
+      billingAddress: cleanData.billing_address || null,
+      pan: cleanData.pan || null,
+      isActive: true,
+    },
+  });
 
-  demoSuppliers.unshift(newSupplier);
-  return { success: true, data: newSupplier };
+  return {
+    success: true,
+    data: {
+      id: created.id,
+      business_id: created.businessId,
+      name: created.name,
+      gstin: created.gstin,
+      state_code: created.stateCode,
+      email: created.email,
+      phone: created.phone,
+      billing_address: created.billingAddress,
+      pan: created.pan,
+      is_active: created.isActive,
+      created_at: created.createdAt.toISOString(),
+      updated_at: created.updatedAt.toISOString(),
+    },
+  };
 }
 
 export async function deleteCustomer(id: string) {
-  demoCustomers = demoCustomers.filter((c) => c.id !== id);
+  await prisma.customer.delete({
+    where: { id },
+  });
   return { success: true };
 }
 
 export async function deleteSupplier(id: string) {
-  demoSuppliers = demoSuppliers.filter((s) => s.id !== id);
+  await prisma.supplier.delete({
+    where: { id },
+  });
   return { success: true };
 }

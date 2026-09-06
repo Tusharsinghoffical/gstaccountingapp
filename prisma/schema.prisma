@@ -8,13 +8,21 @@ generator client {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String
-  name          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  businessUsers BusinessUser[]
+  id                      String         @id @default(uuid())
+  email                   String         @unique
+  passwordHash            String
+  name                    String?
+  emailVerified           Boolean        @default(false)
+  emailVerificationToken  String?
+  emailVerificationExpiry DateTime?
+  passwordResetToken      String?
+  passwordResetExpiry     DateTime?
+  failedLoginAttempts     Int            @default(0)
+  lockedUntil             DateTime?
+  sessionVersion          Int            @default(1)
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  businessUsers           BusinessUser[]
 
   @@map("users")
 }

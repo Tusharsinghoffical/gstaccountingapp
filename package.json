@@ -8,8 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node --import tsx --test tests/*.test.ts",
+    "seed:dev": "node --import tsx prisma/seed.ts",
     "backup": "node --import tsx scripts/backup.ts",
     "restore": "node --import tsx scripts/restore.ts"
+  },
+  "prisma": {
+    "seed": "node --import tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -20,6 +24,7 @@
     "exceljs": "^4.4.0",
     "next": "14.2.35",
     "next-auth": "^4.24.15",
+    "nodemailer": "^7.0.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
@@ -28,6 +33,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",

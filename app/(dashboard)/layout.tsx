@@ -1,38 +1,47 @@
 import React from "react";
 import { AppShell } from "@/components/layout";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-options";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    redirect("/login");
+  }
+
+  const userId = (session.user as any).id;
+  const memberships = await prisma.businessUser.findMany({
+    where: { userId, status: "active" },
+    include: { business: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!memberships || memberships.length === 0) {
+    redirect("/onboarding");
+  }
+
+  const availableBusinesses = memberships.map((m) => ({
+    id: m.businessId,
+    name: m.business.name,
+    gstin: m.business.gstin || "",
+    state_code: m.business.stateCode,
+    role: m.role as "admin" | "accountant" | "auditor",
+  }));
+
+  const initialBusiness = availableBusinesses[0];
+
   return (
     <AppShell
-      initialBusiness={{
-        id: "biz-1",
-        name: "Alpha Retailers Pvt Ltd",
-        gstin: "27AABCU9603R1ZM",
-        state_code: "27",
-        role: "admin",
-      }}
-      availableBusinesses={[
-        {
-          id: "biz-1",
-          name: "Alpha Retailers Pvt Ltd",
-          gstin: "27AABCU9603R1ZM",
-          state_code: "27",
-          role: "admin",
-        },
-        {
-          id: "biz-2",
-          name: "Krishna Textiles & Garments",
-          gstin: "29AABCU9603R1ZK",
-          state_code: "29",
-          role: "accountant",
-        },
-      ]}
-      userEmail="accountant@alpha-retailers.in"
-      userRole="admin"
+      initialBusiness={initialBusiness}
+      availableBusinesses={availableBusinesses}
+      userEmail={session.user.email || ""}
+      userRole={initialBusiness.role}
     >
       {children}
     </AppShell>

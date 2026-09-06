@@ -57,7 +57,7 @@ ENV HOSTNAME="0.0.0.0"
 
 # Create a non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
- && adduser  --system --uid 1001 nextjs
+    && adduser  --system --uid 1001 nextjs
 
 # Copy only the standalone output from builder
 # next.config.mjs must have output: "standalone"
