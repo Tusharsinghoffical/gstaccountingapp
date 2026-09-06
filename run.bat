@@ -80,7 +80,7 @@ echo.
 
 REM Check node_modules
 if not exist "node_modules\" (
-    echo [INFO] Installing project dependencies first (npm install)...
+    echo [INFO] Installing project dependencies first, please wait...
     call npm install
     if errorlevel 1 (
         echo [ERROR] npm install failed.
