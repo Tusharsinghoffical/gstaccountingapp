@@ -61,42 +61,8 @@ export async function GET(
     items: invoice.items,
   };
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // 1. If Supabase Edge Function is configured, call the Edge Function
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const edgeUrl = `${supabaseUrl}/functions/v1/generate-invoice-pdf`;
-      const edgeRes = await fetch(edgeUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (edgeRes.ok) {
-        const pdfArrayBuffer = await edgeRes.arrayBuffer();
-        const cleanFilename = `Invoice-${(invoice.invoice_no || id).replace(/\//g, "-")}.pdf`;
-
-        return new NextResponse(pdfArrayBuffer, {
-          status: 200,
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": `inline; filename="${cleanFilename}"`,
-          },
-        });
-      }
-    } catch {
-      // Fall through to dev print view
-    }
-  }
-
-  // 2. Development fallback: GST Rule 46 compliant print-ready HTML view
-  // Provides instant high-definition vector print/save-as-pdf in local dev
+  // Direct GST Rule 46 compliant print-ready HTML view
+  // Provides instant high-definition vector print/save-as-pdf in local architecture
   const isInterState = (invoice.igst || 0) > 0;
   const amountWords = numberToWordsINR(invoice.total);
 
@@ -137,7 +103,7 @@ export async function GET(
 <body>
   <div class="no-print" style="max-width: 800px; margin: 0 auto 16px auto; display: flex; justify-content: space-between; align-items: center; background: #e0f2fe; padding: 10px 16px; border-radius: 8px;">
     <span style="color: #0369a1; font-size: 12px; font-weight: 600;">
-      ⚡ Supabase Edge Function PDF Template (Preview Mode)
+      📄 GST Rule 46 Compliant Invoice (Print / Vector PDF Mode)
     </span>
     <button onclick="window.print()" style="background: #0284c7; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer;">
       Print / Save as PDF

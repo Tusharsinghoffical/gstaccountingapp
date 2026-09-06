@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import path from "path";
+import { saveInvoiceFile } from "@/lib/storage/local-files";
 
 import {
   validateInvoiceFile,
@@ -26,6 +27,7 @@ export interface UploadedInvoiceFile {
   mimeType: string;
   uploadedAt: string;
   publicUrl?: string;
+  fileId?: string;
 }
 
 export interface UploadResult {
@@ -35,8 +37,8 @@ export interface UploadResult {
 }
 
 /**
- * Uploads an invoice document to the Supabase Storage bucket 'invoices',
- * strictly scoped under the business_id path prefix for multi-tenant RLS isolation.
+ * Uploads an invoice document to local filesystem storage,
+ * strictly scoped under ./storage/{businessId}/invoices/{uuid}.{ext}
  */
 export async function uploadInvoiceDocument(
   formData: FormData
@@ -60,56 +62,22 @@ export async function uploadInvoiceDocument(
       return { success: false, error: validation.error };
     }
 
-    // 2. Generate tenant-scoped storage path: "{business_id}/{timestamp}-{cleanFileName}"
-    const cleanFileName = file.name
-      .replace(/[^a-zA-Z0-9._-]/g, "_")
-      .toLowerCase();
-    const storagePath = `${businessId}/${Date.now()}-${cleanFileName}`;
+    // 2. Save directly to local filesystem storage
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const ext = path.extname(file.name) || ".bin";
+    const saved = await saveInvoiceFile(businessId, buffer, ext, file.name);
 
-    // 3. Attempt upload to Supabase Storage
-    try {
-      const supabase = createClient();
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      const { data, error } = await supabase.storage
-        .from("invoices")
-        .upload(storagePath, buffer, {
-          contentType: file.type,
-          upsert: false,
-        });
-
-      if (!error && data) {
-        return {
-          success: true,
-          data: {
-            storagePath: data.path,
-            bucket: "invoices",
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            uploadedAt: new Date().toISOString(),
-          },
-        };
-      }
-    } catch (storageErr) {
-      // If Supabase connection is in offline/demo mode, provide clean demo fallback
-      console.warn(
-        "Supabase storage upload fell back to local session store:",
-        storageErr
-      );
-    }
-
-    // Local / Demo fallback (when Supabase URL is placeholder during dev)
     return {
       success: true,
       data: {
-        storagePath,
-        bucket: "invoices",
+        storagePath: `${businessId}/invoices/${saved.fileId}.${saved.extension}`,
+        bucket: "local",
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
         uploadedAt: new Date().toISOString(),
+        fileId: saved.fileId,
       },
     };
   } catch (err: unknown) {

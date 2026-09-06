@@ -1,102 +1,75 @@
 # GST Ledger — Full-Stack GST Accounting Application
 
-A production-grade, multi-tenant GST accounting system built with **Next.js 14**, **Supabase**, and **Groq AI**. Designed for Indian SMEs to manage sales/purchase invoices, parties, payments, ledgers, GST reports (GSTR-1), and AI-assisted document processing.
+A production-grade, multi-tenant GST accounting system built with **Next.js 14**, **Prisma**, **SQLite (WAL mode)**, **NextAuth.js**, and **Groq AI**. Designed for Indian SMEs to manage sales/purchase invoices, parties, payments, double-entry ledgers, GST reports (GSTR-1, Ageing), and AI-assisted document processing — running completely locally without third-party BaaS dependencies.
 
 ---
 
 ## Table of Contents
 
 - [Tech Stack](#tech-stack)
-- [Features](#features)
-- [Hybrid Storage & Offline Mode](#hybrid-storage--offline-mode)
-- [Architecture](#architecture)
+- [Local Storage & Security Architecture](#local-storage--security-architecture)
 - [Quick Start (Windows `run.bat`)](#quick-start-windows-runbat)
 - [Environment Variables](#environment-variables)
 - [Local Development](#local-development)
 - [Docker Deployment](#docker-deployment)
-- [Supabase Setup](#supabase-setup)
-- [Render Deployment](#render-deployment)
-- [CI / Testing](#ci--testing)
-- [Security](#security)
-- [AWS Audit Notice](#aws-audit-notice)
+- [Backup & Restore Tooling](#backup--restore-tooling)
+- [CI / Testing Suite](#ci--testing-suite)
+- [Zero Cloud-BaaS Audit Notice](#zero-cloud-baas-audit-notice)
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14 (App Router), React 18, TypeScript |
-| Styling | Tailwind CSS 3 |
-| Backend / DB | Supabase (PostgreSQL, Edge Functions, Auth, Storage) |
-| Offline / Local Storage | Client-side LocalStorage DB with automatic fallback & seed data |
-| AI / OCR | Groq API (Vision + Chat Completions), Tesseract.js fallback |
-| Excel Export | ExcelJS (server-side, Edge Functions) |
-| Testing | Node.js test runner with `tsx` (`node --import tsx --test tests/*.test.ts`) |
-| CI | GitHub Actions |
-| Hosting | Render (frontend) + Supabase (backend, already hosted) |
+| Layer | Technology | Description |
+|---|---|---|
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript 5 | Server Components, Client Modals, Server Actions |
+| **Styling** | Tailwind CSS 3 | Utility-first design system with responsive layouts |
+| **Database** | SQLite via Prisma ORM (`@prisma/client`) | `data/app.db` with WAL mode and Decimal currency precision |
+| **Authentication** | NextAuth.js (Credentials Provider) + `bcryptjs` | Multi-tenant session cookies and role authorization |
+| **Authorization** | Application-level tenant assertions (`lib/auth/authorize.ts`) | Strict `businessId` boundary on all queries (replacing RLS) |
+| **Local File Storage** | Node.js File System (`lib/storage/local-files.ts`) | Streamed via authenticated `/api/files/[id]` |
+| **AI / OCR** | Groq API (`gsk_...`) | LLaMA 3.2 Vision for invoice extraction and category classification |
+| **Reports & Exports**| ExcelJS + GST Rule 46 Print Engine | Direct XLSX export and vector PDF print views |
+| **Testing** | Node.js Test Runner with `tsx` | 193 automated unit, concurrency, and cross-tenant tests |
 
 ---
 
-## Features
-
-- **Hybrid Storage Engine** — Supabase cloud database with automatic offline LocalStorage fallback
-- **Multi-tenant** with strict Row-Level Security (RLS) — every row is business-scoped
-- **Sales & Purchase Invoices** — GST-compliant with CGST/SGST/IGST, HSN codes, line items
-- **Party Ledger** — Running balance maintained atomically via Postgres triggers
-- **Payments & Allocation** — Full payment reconciliation with atomic ledger entries
-- **OCR Invoice Scanning** — Upload PDF/image → Groq Vision extracts data → user reviews & edits → saves via validated path
-- **AI Category Suggestion** — Groq classifies purchase invoices; user must explicitly accept
-- **GSTR-1 Report** — B2B/B2C/HSN summary with month/quarter filter and XLSX export
-- **Outstanding & Ageing Report** — 0-30/31-60/61-90/90+ day buckets with XLSX and PDF export
-- **User Management** — Admin-only; invite by email via Supabase Auth, assign roles
-- **Audit Log** — Admin-only read-only view of all financial mutations (triggers, not app code)
-- **RLS Penetration Tests** — 169 automated assertions across 26 test suites run in CI
-
----
-
-## Hybrid Storage & Offline Mode
-
-GST Ledger offers **Dual Storage Architecture**:
-1. **Supabase (Primary / Cloud)**: Connected by default when configured with valid project credentials. Enforces PostgreSQL RLS, triggers, and cloud authentication.
-2. **LocalStorage (Fallback / Offline)**: Activates automatically when:
-   - Supabase project is not yet configured or placeholder keys are used
-   - Network connection is offline or drops
-   - Supabase connection times out (> 4 seconds)
-   
-*Features available offline:*
-- Full Invoices, Customers, Suppliers, Payments, and Ledger CRUD
-- Client-side Audit Trail logging
-- One-click JSON data backup export
-- Sticky Offline Status Banner with "Retry Connection" capability
-
----
-
-## Architecture
+## Local Storage & Security Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  Render (Frontend)               │
-│  Next.js 14 App Router                          │
-│  ├── /app/(dashboard)/...  (authenticated pages) │
-│  ├── /app/actions/...      (Server Actions)      │
-│  └── /app/api/...          (Route Handlers)      │
-└───────────────────┬─────────────────────────────┘
-                    │ HTTPS
-┌───────────────────▼─────────────────────────────┐
-│                Supabase (Backend)                │
-│  ├── PostgreSQL (multi-tenant, RLS enforced)     │
-│  ├── Edge Functions (OCR, GSTR-1 XLSX export)    │
-│  ├── Auth (email/password + invite flow)         │
-│  └── Storage (invoice-documents bucket)          │
-└───────────────────┬─────────────────────────────┘
-                    │ HTTPS
-┌───────────────────▼─────────────────────────────┐
-│                 Groq API (AI)                    │
-│  ├── Vision — OCR extraction from images/PDF    │
-│  └── Chat — Invoice category classification     │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Next.js 14 Application                    │
+│  ├── /app/(dashboard)/...   (App Router pages)              │
+│  ├── /app/api/...           (NextAuth, OCR, File Streaming) │
+│  └── /app/actions/...       (Server Actions)                │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               ▼                               ▼
+┌─────────────────────────────┐ ┌─────────────────────────────┐
+│    Prisma + SQLite (WAL)    │ │     Local File Storage      │
+│  ├── ./data/app.db          │ │  ├── ./storage/{bizId}/     │
+│  ├── 12 Relational Tables   │ │  └── invoices/{uuid}.{ext}  │
+│  └── Decimal currency math  │ │  Streamed via auth session  │
+└─────────────────────────────┘ └─────────────────────────────┘
+               ▲
+               │
+┌──────────────┴──────────────┐
+│  lib/auth/authorize.ts      │
+│  ├── assertBusinessMember() │
+│  └── assertRole()           │
+└─────────────────────────────┘
 ```
+
+### Key Security Design
+1. **Isolated Tenant Boundary**:
+   Every database operation passes through `lib/data/*.ts` and `lib/auth/authorize.ts`. A user from Business A attempting to read or mutate Business B's data receives a strict **403 Forbidden** error.
+2. **Atomic Invoicing with Serialized Numbering**:
+   Invoice creation runs inside serialized transactions with SQLite WAL mode (`connection_limit=1&busy_timeout=30000`), guaranteeing zero skipped or duplicate invoice numbers even under concurrent load.
+3. **Protected Local Storage**:
+   Invoice attachments are saved to `./storage/{businessId}/invoices/`. Files are **never** directly exposed via static public directories; access is authenticated and streamed through `/api/files/[id]?businessId=...`.
+4. **Direct Groq AI Integration**:
+   OCR and category suggestions communicate directly with Groq via server-side Node.js route handlers with timeouts and fallback to manual entry.
 
 ---
 
@@ -125,16 +98,16 @@ If you are on Windows, you can start the application with a single click:
    ============================================================================
    Select an option (1-7) [Default: 1]:
    ```
-3. Press **Enter** or select `1` to run locally.
+3. Press **Enter** or select `1` to run locally:
    - Automatically initializes `.env.local` if missing.
-   - Automatically verifies dependencies.
-   - Automatically opens your browser at [http://localhost:3000](http://localhost:3000).
+   - Verifies SQLite database file and runs `prisma db push`.
+   - Starts local server and opens your browser at [http://localhost:3000](http://localhost:3000).
 
 ### CLI Shortcut Flags for `run.bat`:
 - `.\run.bat dev` — Launch local Next.js dev server directly
 - `.\run.bat docker` — Build image and run Docker container
-- `.\run.bat test` — Execute automated unit & RLS penetration tests
-- `.\run.bat build` — Run production bundle build
+- `.\run.bat test` — Execute automated test suite (193 tests)
+- `.\run.bat build` — Run production bundle build (`npm run build`)
 - `.\run.bat stop` — Stop Docker container
 - `.\run.bat logs` — Tail live Docker logs
 
@@ -142,304 +115,107 @@ If you are on Windows, you can start the application with a single click:
 
 ## Environment Variables
 
-> ⚠️ **Never commit real secrets.** Copy `.env.local.example` → `.env.local` and fill in values.
+Copy `.env.local.example` → `.env.local`:
 
-### Required Variables
+```env
+# Local SQLite Database
+DATABASE_URL="file:../data/app.db"
 
-All variables below **must** be set in your Vercel project settings (Project → Settings → Environment Variables) and in `.env.local` for local development.
+# NextAuth Configuration
+NEXTAUTH_SECRET="gst-ledger-local-development-secret-32-chars-minimum"
+NEXTAUTH_URL="http://localhost:3000"
 
-| Variable | Required | Exposed to Browser | Description |
-|---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ Yes | ✅ Yes | Your Supabase project URL (`https://xxxx.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ Yes | ✅ Yes | Supabase anonymous/public key (safe to expose) |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Yes | ❌ No | Supabase service role key — **server-only**, full DB access |
-| `GROQ_API_KEY` | ✅ Yes | ❌ No | Groq API key (`gsk_...`) — **server-only**, used for OCR and AI classification |
-
-### Variable Details
-
-#### `NEXT_PUBLIC_SUPABASE_URL`
-- **Format**: `https://<project-id>.supabase.co`
-- **Where to get it**: Supabase Dashboard → Project Settings → API → Project URL
-- **Used in**: Supabase client initialization (browser and server)
-
-#### `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- **Format**: JWT string starting with `eyJ...`
-- **Where to get it**: Supabase Dashboard → Project Settings → API → `anon` `public` key
-- **Used in**: Supabase client initialization for browser-side auth flows
-- **Safety**: This key is subject to Supabase RLS policies — it cannot bypass row-level security
-
-#### `SUPABASE_SERVICE_ROLE_KEY`
-- **Format**: JWT string starting with `eyJ...`
-- **Where to get it**: Supabase Dashboard → Project Settings → API → `service_role` key
-- **⚠️ Warning**: This key bypasses RLS. Only used server-side for admin operations (invite user, system triggers).
-- **Used in**: `lib/supabase/admin.ts`, `app/actions/users.ts`
-
-#### `GROQ_API_KEY`
-- **Format**: `gsk_<random-string>`
-- **Where to get it**: [console.groq.com](https://console.groq.com) → API Keys
-- **Used in**: `lib/ai/classifyInvoice.ts`, `app/api/ocr/`, `supabase/functions/`
-- **Timeouts enforced**: All Groq calls have `AbortSignal.timeout()` — if Groq is unavailable, users are gracefully redirected to manual entry
-
-### Setting Variables in Vercel
-
-1. Go to [vercel.com](https://vercel.com) → your project
-2. Click **Settings** → **Environment Variables**
-3. Add each variable above with its value
-4. Set environment scope to **Production**, **Preview**, and **Development** as appropriate
-5. Redeploy after adding variables
+# AI / OCR Integration (Groq API Key)
+GROQ_API_KEY="gsk_your_groq_api_key_here"
+```
 
 ---
 
 ## Local Development
 
-### Prerequisites
-
-- Node.js 20+
-- npm 10+
-- A Supabase project (free tier works)
-- A Groq API key (free tier works)
-
-### Steps
-
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Tusharsinghoffical/gstaccountingapp.git
-cd gstaccountingapp
+# 1. Install dependencies
+npm install
 
-# 2. Install dependencies
-npm ci
+# 2. Push Prisma schema to SQLite
+npx prisma db push
 
-# 3. Set up environment variables
-cp .env.local.example .env.local
-# Edit .env.local with your actual Supabase and Groq credentials
-
-# 4. Run the development server
+# 3. Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Visit [http://localhost:3000](http://localhost:3000) to log in with seeded demo credentials:
+- **Admin**: `admin@gstledger.local` / `admin123`
+- **Accountant**: `accountant@gstledger.local` / `acc123`
 
 ---
 
 ## Docker Deployment
 
-You can build and run the application in a production-optimized container using either Docker Compose or standard Docker commands:
+Build and run a standalone self-contained container with persistent SQLite volume:
 
-### Option A: Using Docker Compose
 ```bash
-# Start container in detached mode
-docker compose up -d
+# Build and run with docker-compose
+docker compose up -d --build
 
-# View logs
-docker compose logs -f
-
-# Stop container
-docker compose down
+# Or use run.bat
+.\run.bat docker
 ```
 
-### Option B: Using Docker CLI
-```bash
-# 1. Build image
-docker build -t gst-ledger .
+Persistent volume mounts:
+- `./data` → Container SQLite database
+- `./storage` → Container invoice files
 
-# 2. Run container
-docker run -d --name gst-ledger --env-file .env.local -p 3000:3000 gst-ledger
+---
+
+## Backup & Restore Tooling
+
+GST Ledger includes automated backup and restore scripts utilizing SQLite's atomic `VACUUM INTO` and ZIP compression:
+
+```bash
+# Create a timestamped backup in ./backups/
+npm run backup
+
+# Output:
+# [Backup] Performing SQLite VACUUM INTO snapshot...
+# [Backup] Archiving database and storage files...
+# [Backup] Verified archive integrity (MD5 checksum matched).
+# [Backup] Completed successfully: ./backups/gst-ledger-backup-2026-09-06T20-30-00.zip
+
+# Restore from backup archive
+npm run restore ./backups/gst-ledger-backup-2026-09-06T20-30-00.zip
 ```
 
 ---
 
-## Supabase Setup
+## CI / Testing Suite
 
-### Database Migrations
-
-Apply all migrations in order from `supabase/migrations/`:
+Execute the comprehensive automated test suite (193 tests):
 
 ```bash
-# Using Supabase CLI
-npx supabase db push
-
-# Or manually via Supabase Dashboard SQL Editor, run each file in order:
-# 1. 20240101000000_core_schema.sql
-# 2. 20240101000001_rls_policies.sql
-# 3. 20240101000002_invoice_numbering.sql
-# 4. 20240101000003_invoice_immutability_and_notes.sql
-# 5. 20240101000004_atomic_payments.sql
-# 6. 20240101000005_party_running_balance.sql
-# 7. 20240101000006_storage_buckets_and_rls.sql
-# 8. 20240102000000_invoice_category.sql
-# 9. 20240103000000_user_management.sql
-# 10. 20240104000000_audit_log_triggers.sql
-```
-
-### Edge Functions
-
-Deploy Edge Functions from `supabase/functions/`:
-
-```bash
-npx supabase functions deploy extract-invoice-ocr
-npx supabase functions deploy structure-invoice-data
-npx supabase functions deploy gstr1-export
-npx supabase functions deploy ageing-report-export
-```
-
-### Storage Bucket
-
-Create a private storage bucket named `invoice-documents` in your Supabase project:
-
-```
-Supabase Dashboard → Storage → New Bucket
-Name: invoice-documents
-Public: No (private)
-```
-
-The RLS policies for this bucket are already defined in `20240101000006_storage_buckets_and_rls.sql`.
-
-### Auth Configuration
-
-In Supabase Dashboard → Authentication → Settings:
-- Enable **Email** provider
-- Enable **Email confirmations** for production
-- Set **Site URL** to your Vercel deployment URL
-- Add your Vercel preview URL to **Additional redirect URLs**
-
----
-
-## Render Deployment
-
-### One-Click via Blueprint
-
-This repo includes a [`render.yaml`](render.yaml) blueprint. Render auto-detects it:
-
-1. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**
-2. Connect your GitHub account and select **`gstaccountingapp`**
-3. Render reads `render.yaml` and creates a **Web Service** automatically
-4. Fill in the 4 secret environment variables when prompted (see below)
-5. Click **Apply** — your app is live in ~3 minutes
-
-### Setting Environment Variables in Render
-
-In the Render Dashboard → your service → **Environment**:
-
-| Variable | Value |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | your service role key |
-| `GROQ_API_KEY` | `gsk_...` |
-
-> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` and `GROQ_API_KEY` are server-only secrets — never prefix them with `NEXT_PUBLIC_`.
-
-### Manual Deploy via Render CLI
-
-```bash
-# Install Render CLI
-npm i -g @render-com/cli
-
-# Deploy
-render up
-```
-
-### Post-Deploy Checklist
-
-- [ ] All 4 environment variables set in Render service settings
-- [ ] Supabase Auth **Site URL** updated to your Render service URL (e.g. `https://gst-ledger.onrender.com`)
-- [ ] Supabase Auth **Additional redirect URLs** includes the Render URL
-- [ ] All 10 database migrations applied in Supabase
-- [ ] All Edge Functions deployed to Supabase
-- [ ] `invoice-documents` storage bucket created (private)
-- [ ] Verify `/` → redirects to login for unauthenticated users
-- [ ] Verify admin-only routes (`/settings/users`, `/settings/audit-log`) are blocked for non-admin roles
-
----
-
-## CI / Testing
-
-### Test Suite
-
-```bash
-# Run all tests (18 test files, 200+ assertions)
 npm test
-
-# Run a specific test file
-node --test tests/rls_penetration.test.ts
 ```
 
-### Test Files
-
-| File | Description |
-|---|---|
-| `rls_penetration.test.ts` | **Cross-tenant RLS isolation** — 800+ assertions across all tables |
-| `invoice_immutability.test.ts` | Immutability rules for confirmed invoices |
-| `invoice_concurrency.test.ts` | Concurrent invoice creation safety |
-| `payment_allocation.test.ts` | Payment allocation and ledger consistency |
-| `party_running_balance.test.ts` | Running balance correctness |
-| `gstr1_report.test.ts` | GSTR-1 report generation and grouping |
-| `ageing_report.test.ts` | Ageing bucket calculation correctness |
-| `audit_log.test.ts` | Audit log trigger behavior |
-| `user_management.test.ts` | RBAC and user invite logic |
-| `invoice_category_ai.test.ts` | AI category suggestion and fallback |
-| `ocr_extraction.test.ts` | OCR extraction pipeline |
-| `ocr_review_flow.test.ts` | OCR review → invoice creation path |
-| `ocr_structuring.test.ts` | Groq JSON structuring with fallbacks |
-| `ocr_upload.test.ts` | File upload and validation |
-| `format.test.ts` | Currency and number formatting |
-| `gstin.test.ts` | GSTIN validation |
-| `tax.test.ts` | GST tax calculation |
-| `numberToWords.test.ts` | Number to Indian words conversion |
-
-### GitHub Actions CI
-
-Every push and pull request to `main` runs:
-1. `npm test` — full test suite including RLS penetration matrix
-2. `npm run build` — Next.js production build verification
-
-**Schema or RLS policy changes must pass the full CI suite before merging.**
+### Key Test Suites:
+- `invoice_concurrency_sqlite.test.ts`: Fires 20 concurrent transactions creating invoices in WAL mode, asserting zero duplicate numbers and zero sequence gaps.
+- `cross_tenant_authorization.test.ts`: Asserts strict 403 Forbidden errors across all tables when accessing resources with a different tenant session.
+- `invoice_immutability.test.ts`: Enforces GST compliance rules preventing mutation of confirmed invoices.
+- `payment_allocation.test.ts`: Validates running ledger balances and FIFO payment allocations.
+- `gstr1_report.test.ts`: Verifies B2B, B2CL, B2CS, and HSN summary calculations.
 
 ---
 
-## Security
+## Zero Cloud-BaaS Audit Notice
 
-### Row-Level Security (RLS)
+> ✅ **This project is 100% free of Supabase, AWS, Firebase, or external BaaS dependencies.**
 
-Every table is protected by PostgreSQL RLS policies:
-- All data is scoped to `business_id`
-- Users can only access rows belonging to businesses they are members of
-- Admin-only operations (`audit_log`, `business_users`) have additional role checks
-- RLS cannot be bypassed by the `anon` key — only the service role can bypass (server-only)
-
-### Audit Trail
-
-Financial mutations (invoices, payments, ledger entries) are automatically logged to `audit_log` via **Postgres triggers** — not application code. This ensures:
-- No mutation can be silently unlogged
-- Audit records are immutable (no `UPDATE`/`DELETE` RLS policies on `audit_log`)
-- Diffs of what changed (before/after) are stored as JSONB
-
-### Key Management
-
-- `SUPABASE_SERVICE_ROLE_KEY` and `GROQ_API_KEY` are **never** prefixed with `NEXT_PUBLIC_`
-- These variables are only loaded in Server Actions, Route Handlers, and Edge Functions
-- They are never bundled into client-side JavaScript
-
----
-
-## AWS Audit Notice
-
-> ✅ **This project contains zero AWS dependencies.**
-
-A full audit was performed against:
-- `package.json` dependencies and devDependencies
-- `package-lock.json` resolved dependency tree
-- All source files in `lib/`, `app/`, `components/`, `supabase/`
-
-**No AWS SDK, AWS credentials, AWS-specific configuration, or AWS-hosted services exist anywhere in this codebase.**
-
-Infrastructure is exclusively:
-- **Supabase** (PostgreSQL, Auth, Storage, Edge Functions)
-- **Render** (Frontend hosting)
-- **Groq** (AI/OCR API)
+- No `@supabase/supabase-js` or `@supabase/ssr` packages in dependency tree.
+- No cloud database connections required.
+- All database state is stored in `./data/app.db`.
+- All document attachments are stored in `./storage/`.
 
 ---
 
 ## License
 
-Private — All Rights Reserved © 2024 Tushar Singh
+Private — All Rights Reserved © 2024-2026 Tushar Singh

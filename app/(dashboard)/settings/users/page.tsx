@@ -78,7 +78,7 @@ export default function UserManagementPage() {
       if (!res.success) {
         setInviteError(res.error || "Failed to send invitation.");
       } else {
-        setInviteSuccess(`Invitation sent via Supabase Auth to ${inviteEmail}.`);
+        setInviteSuccess(`Invitation recorded for ${inviteEmail}.`);
         setInviteEmail("");
         // Refresh member list
         const updated = await getBusinessMembers();
@@ -454,7 +454,7 @@ export default function UserManagementPage() {
                 <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-2xs text-neutral-600 flex items-start gap-2">
                   <span className="text-xs">⚡</span>
                   <span>
-                    Sending the invite triggers <strong>Supabase Auth native invite flow</strong>. The recipient will receive an email confirmation link from Supabase Auth.
+                    Sending the invite registers the membership in the <strong>local business directory</strong> with role-based access control.
                   </span>
                 </div>
 

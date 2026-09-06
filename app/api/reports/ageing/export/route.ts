@@ -24,39 +24,7 @@ export async function GET(req: NextRequest) {
     // 1. PDF EXPORT
     // ------------------------------------------------------------------------
     if (format === "pdf") {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-      const supabaseKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      // Try Edge Function if configured
-      if (supabaseUrl && supabaseKey && !supabaseUrl.includes("your-project-id")) {
-        try {
-          const edgeUrl = `${supabaseUrl}/functions/v1/export-ageing-pdf`;
-          const edgeRes = await fetch(edgeUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({ reportData, businessInfo }),
-          });
-
-          if (edgeRes.ok) {
-            const pdfBuffer = await edgeRes.arrayBuffer();
-            return new NextResponse(pdfBuffer, {
-              status: 200,
-              headers: {
-                "Content-Type": "application/pdf",
-                "Content-Disposition": `attachment; filename="Ageing_Report_${dateSlug}.pdf"`,
-              },
-            });
-          }
-        } catch (edgeErr) {
-          console.warn("Supabase Edge Function export-ageing-pdf failed, falling back:", edgeErr);
-        }
-      }
-
-      // Development / Server-side fallback: high-fidelity print-ready vector PDF view
+      // Server-side export: high-fidelity print-ready vector PDF view
       const formatCurrency = (n: number) =>
         "₹" + (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

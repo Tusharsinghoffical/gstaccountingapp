@@ -25,43 +25,7 @@ export async function GET(req: NextRequest) {
       gstin: "27AAPFU0939F1ZV",
     };
 
-    // 1. Try Supabase Edge Function if configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseKey && !supabaseUrl.includes("your-project-id")) {
-      try {
-        const edgeUrl = `${supabaseUrl}/functions/v1/export-gstr1-xlsx`;
-        const edgeRes = await fetch(edgeUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ reportData, businessInfo }),
-        });
-
-        if (edgeRes.ok) {
-          const edgeArrayBuffer = await edgeRes.arrayBuffer();
-          const cleanPeriod = (reportData.period_label || "Return").replace(/[\s/]/g, "_");
-          const filename = `GSTR1_${cleanPeriod}.xlsx`;
-
-          return new NextResponse(edgeArrayBuffer, {
-            status: 200,
-            headers: {
-              "Content-Type":
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              "Content-Disposition": `attachment; filename="${filename}"`,
-            },
-          });
-        }
-      } catch (edgeErr) {
-        console.warn("Supabase Edge Function export failed, running local exceljs fallback:", edgeErr);
-      }
-    }
-
-    // 2. Server-side local fallback using exceljs
+    // Server-side export using exceljs
     const xlsxBuffer = await generateGstr1ExcelWorkbook(reportData, businessInfo);
     const cleanPeriod = (reportData.period_label || "Return").replace(/[\s/]/g, "_");
     const filename = `GSTR1_${cleanPeriod}.xlsx`;

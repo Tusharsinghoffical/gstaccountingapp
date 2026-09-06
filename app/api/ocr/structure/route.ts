@@ -29,63 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    // 1. Try forwarding to Supabase Edge Function if available
-    if (
-      supabaseUrl &&
-      supabaseServiceKey &&
-      !supabaseUrl.includes("your-project-id")
-    ) {
-      try {
-        const edgeFunctionUrl = `${supabaseUrl}/functions/v1/structure-invoice-data`;
-        const edgeRes = await fetch(edgeFunctionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ raw_text: rawText }),
-        });
-
-        const edgeData = await edgeRes.json();
-
-        if (!edgeRes.ok || !edgeData.success) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: edgeData.error || "Edge Function rejected structured data.",
-              validation_errors: edgeData.validation_errors,
-            },
-            { status: edgeRes.status >= 400 ? edgeRes.status : 422 }
-          );
-        }
-
-        // Validate on client boundary as well
-        const boundaryValidation = validateStructuredInvoice(edgeData.structured_data);
-        if (!boundaryValidation.valid) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: boundaryValidation.error,
-              validation_errors: boundaryValidation.errors,
-            },
-            { status: 422 }
-          );
-        }
-
-        return NextResponse.json(edgeData);
-      } catch (edgeErr) {
-        console.warn(
-          "Supabase Edge Function structure invocation failed, running local handler:",
-          edgeErr
-        );
-      }
-    }
-
-    // 2. Local / Server-side Groq JSON Mode Structuring
+    // 1. Server-side Groq JSON Mode Structuring
     const groqApiKey = process.env.GROQ_API_KEY;
     let structuredJson: unknown = null;
     let modelUsed = "llama-3.3-70b-versatile";

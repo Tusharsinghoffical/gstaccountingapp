@@ -17,22 +17,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # Pass NEXT_PUBLIC_ vars as build args so they are embedded
-        # in the static JS bundle (required by Next.js)
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     image: gst-ledger:latest
     container_name: gst-ledger
     ports:
       - "3000:3000"
     environment:
-      # Runtime-only secrets — never baked into the image
       - NODE_ENV=production
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-gst-ledger-local-secret-key-32-chars-min}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - GROQ_API_KEY=${GROQ_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./storage:/app/storage
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]

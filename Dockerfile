@@ -36,14 +36,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build args — injected at build time for NEXT_PUBLIC_ vars that get
-# baked into the static bundle. Server-only secrets (SERVICE_ROLE_KEY,
-# GROQ_API_KEY) must NOT be passed here — they are runtime env vars.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Generate Prisma client for Linux
+RUN npx prisma generate
 
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

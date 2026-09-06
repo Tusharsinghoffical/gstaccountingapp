@@ -1,6 +1,5 @@
 import React from "react";
 import { AppShell } from "@/components/layout";
-import { OfflineBanner } from "@/components/ui";
 
 export default function DashboardLayout({
   children,
@@ -35,7 +34,6 @@ export default function DashboardLayout({
       userEmail="accountant@alpha-retailers.in"
       userRole="admin"
     >
-      <OfflineBanner />
       {children}
     </AppShell>
   );

@@ -29,34 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    // 1. Try forwarding to Supabase Edge Function if configured
-    if (supabaseUrl && supabaseServiceKey && !supabaseUrl.includes("your-project-id")) {
-      try {
-        const edgeFunctionUrl = `${supabaseUrl}/functions/v1/extract-invoice-ocr`;
-        const edgeRes = await fetch(edgeFunctionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ bucket, filePath }),
-        });
-
-        if (edgeRes.ok) {
-          const data: OCRExtractionResponse = await edgeRes.json();
-          return NextResponse.json(data);
-        }
-      } catch (edgeErr) {
-        console.warn("Supabase Edge Function invocation failed, falling back to local extractor:", edgeErr);
-      }
-    }
-
-    // 2. Local / Development Fallback with high-fidelity realistic GST invoice extraction
-    // Simulates OCR processing when developing offline
+    // 1. Local Groq Vision / Local OCR Extractor
     const isImage = !filePath.endsWith(".pdf");
     const groqKeyConfigured = Boolean(
       process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.includes("your-groq-api-key")

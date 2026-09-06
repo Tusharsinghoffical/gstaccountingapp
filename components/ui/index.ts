@@ -4,4 +4,3 @@ export * from "./CurrencyInput";
 export * from "./StatusBadge";
 export * from "./EmptyState";
 export * from "./DataTable";
-export * from "./OfflineBanner";

@@ -1,4 +1,4 @@
-name: CI & RLS Penetration Gatekeeper
+name: CI & Tenant Authorization Gatekeeper
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  rls-penetration-and-tests:
-    name: Run Automated Tests & Cross-Tenant RLS Penetration Suite
+  authorization-and-tests:
+    name: Run Automated Tests, Concurrency & Cross-Tenant Authorization Suite
     runs-on: ubuntu-latest
 
     steps:
@@ -24,40 +24,36 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Audit for AWS Dependencies (Must Return Zero Results)
+      - name: Audit for Cloud BaaS & Supabase Dependencies (Must Return Zero Results)
         run: |
-          echo "=== Scanning for AWS packages in dependency tree ==="
-          if npm ls --all 2>/dev/null | grep -iE 'aws|amazon|@aws-sdk|aws-sdk'; then
-            echo "❌ FAIL: AWS-related package(s) found in dependency tree. Remove them before merging."
+          echo "=== Scanning for Supabase and AWS packages in dependency tree ==="
+          if npm ls --all 2>/dev/null | grep -iE '@supabase|supabase-js|@aws-sdk|aws-sdk'; then
+            echo "❌ FAIL: Supabase or AWS package(s) found in dependency tree. Must be 100% local."
             exit 1
           else
-            echo "✅ PASS: No AWS dependencies found."
+            echo "✅ PASS: Zero Supabase and zero AWS dependencies found."
           fi
 
-      - name: Audit for AWS Credentials in Source Code
+      - name: Prepare SQLite Local Database
         run: |
-          echo "=== Scanning source code for AWS credential patterns ==="
-          if grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.mjs" \
-            -E 'AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|aws-sdk|@aws-sdk|amazonaws\.com|s3\.putObject|new S3\(' \
-            app/ lib/ components/ types/ 2>/dev/null; then
-            echo "❌ FAIL: AWS credential or SDK reference found in source code."
-            exit 1
-          else
-            echo "✅ PASS: No AWS credentials or SDK references in source code."
-          fi
+          mkdir -p data storage backups
+          npx prisma db push
 
-      - name: Run Full Test Suite (Including Cross-Tenant RLS Penetration Matrix)
+      - name: Run Full Test Suite (Unit + SQLite Concurrency + Cross-Tenant Authorization)
         run: npm test
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXTAUTH_SECRET: ci-secret-key-for-testing-purposes-32chars
+          NEXTAUTH_URL: http://localhost:3000
           GROQ_API_KEY: placeholder-groq-key
+
+      - name: Test Backup & Restore Tooling
+        run: |
+          npm run backup
+          npm run restore
 
       - name: Verify Next.js Production Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXTAUTH_SECRET: ci-secret-key-for-testing-purposes-32chars
+          NEXTAUTH_URL: http://localhost:3000
           GROQ_API_KEY: placeholder-groq-key

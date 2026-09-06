@@ -1,6 +1,5 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserRole } from "./users";
 import {
   type AuditLogEntry,
@@ -206,34 +205,41 @@ export async function getFinancialAuditLogs(filters?: {
     };
   }
 
-  // 2. Query Supabase audit_log table with fallback to demo data
+  // 2. Query Prisma auditLog table with fallback to demo data
   let rawLogs: AuditLogEntry[] = [];
   try {
-    const supabase = createAdminClient();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from("audit_log")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
+    const { prisma } = await import("@/lib/prisma");
+    const logs = await prisma.auditLog.findMany({
+      where: { businessId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
 
-      if (!error && data && data.length > 0) {
-        rawLogs = data.map((row: any) => ({
+    if (logs && logs.length > 0) {
+      rawLogs = logs.map((row) => {
+        let parsedDiff = {};
+        try {
+          parsedDiff = typeof row.diff === "string" ? JSON.parse(row.diff) : (row.diff || {});
+        } catch {
+          parsedDiff = {};
+        }
+
+        return {
           id: row.id,
-          business_id: row.business_id,
-          user_id: row.user_id,
-          user_email: row.user_id ? "authenticated-user@alpha.in" : "System / Trigger",
-          action: row.action,
-          table_name: row.table_name,
-          record_id: row.record_id,
-          record_identifier: row.record_id.slice(0, 8),
-          diff: row.diff || {},
-          created_at: row.created_at,
-        }));
-      }
+          business_id: row.businessId,
+          user_id: row.userId || null,
+          user_email: row.userId ? "authenticated-user@alpha.in" : "System / Trigger",
+          action: (row.action as import("@/lib/audit/diff").AuditAction) || "SYSTEM",
+          table_name: row.tableName,
+          record_id: row.recordId,
+          record_identifier: row.recordId.slice(0, 8),
+          diff: parsedDiff as Record<string, unknown>,
+          created_at: row.createdAt.toISOString(),
+        };
+      });
     }
   } catch {
-    // If Supabase not connected or table empty in local dev, gracefully fallback
+    // If DB empty or disconnected in tests, gracefully fallback
   }
 
   if (rawLogs.length === 0) {

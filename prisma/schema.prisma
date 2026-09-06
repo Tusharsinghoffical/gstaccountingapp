@@ -1,0 +1,267 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/app.db?connection_limit=1&busy_timeout=30000"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  businessUsers BusinessUser[]
+
+  @@map("users")
+}
+
+model Business {
+  id                 String              @id @default(uuid())
+  name               String
+  gstin              String
+  stateCode          String
+  legalName          String?
+  tradeName          String?
+  email              String?
+  phone              String?
+  address            String?
+  pincode            String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  businessUsers      BusinessUser[]
+  customers          Customer[]
+  suppliers          Supplier[]
+  invoices           Invoice[]
+  invoiceItems       InvoiceItem[]
+  payments           Payment[]
+  paymentAllocations PaymentAllocation[]
+  ledgerEntries      LedgerEntry[]
+  auditLogs          AuditLog[]
+  taxRates           TaxRateConfig[]
+
+  @@index([gstin])
+  @@map("businesses")
+}
+
+model BusinessUser {
+  id           String   @id @default(uuid())
+  businessId   String
+  userId       String
+  role         String   @default("accountant") // "admin" | "accountant" | "auditor"
+  status       String   @default("active")     // "active" | "invited" | "revoked"
+  invitedEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([businessId, status])
+  @@index([userId, businessId, role])
+  @@map("business_users")
+}
+
+model Customer {
+  id              String   @id @default(uuid())
+  businessId      String
+  name            String
+  gstin           String?
+  stateCode       String
+  email           String?
+  phone           String?
+  billingAddress  String?
+  shippingAddress String?
+  pan             String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, name])
+  @@map("customers")
+}
+
+model Supplier {
+  id             String   @id @default(uuid())
+  businessId     String
+  name           String
+  gstin          String?
+  stateCode      String
+  email          String?
+  phone          String?
+  billingAddress String?
+  pan            String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, name])
+  @@map("suppliers")
+}
+
+model Invoice {
+  id                   String              @id @default(uuid())
+  businessId           String
+  type                 String // "sales" | "purchase"
+  customerOrSupplierId String
+  invoiceNo            String
+  invoiceDate          String // YYYY-MM-DD
+  dueDate              String? // YYYY-MM-DD
+  status               String              @default("draft") // "draft" | "final" | "cancelled"
+  subtotal             Decimal             @default(0.00)
+  cgst                 Decimal             @default(0.00)
+  sgst                 Decimal             @default(0.00)
+  igst                 Decimal             @default(0.00)
+  total                Decimal             @default(0.00)
+  financialYear        String // e.g. "2024-25"
+  category             String?
+  notes                String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items              InvoiceItem[]
+  paymentAllocations PaymentAllocation[]
+  ledgerEntries      LedgerEntry[]
+
+  @@unique([businessId, type, financialYear, invoiceNo])
+  @@index([businessId, invoiceDate])
+  @@index([businessId, type, status])
+  @@index([businessId, customerOrSupplierId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id            String   @id @default(uuid())
+  businessId    String
+  invoiceId     String
+  description   String
+  hsnCode       String
+  qty           Decimal  @default(1.000)
+  rate          Decimal  @default(0.00)
+  discount      Decimal  @default(0.00)
+  taxableAmount Decimal  @default(0.00)
+  gstRate       Decimal  @default(0.00)
+  cgstAmount    Decimal  @default(0.00)
+  sgstAmount    Decimal  @default(0.00)
+  igstAmount    Decimal  @default(0.00)
+  amount        Decimal  @default(0.00)
+  createdAt     DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([invoiceId])
+  @@index([businessId, hsnCode])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  businessId  String
+  partyId     String
+  amount      Decimal
+  date        String // YYYY-MM-DD
+  mode        String // "cash" | "bank_transfer" | "upi" | "cheque" | "other"
+  referenceNo String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business      Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  allocations   PaymentAllocation[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([businessId])
+  @@index([businessId, partyId])
+  @@index([businessId, date])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id              String   @id @default(uuid())
+  businessId      String
+  paymentId       String
+  invoiceId       String
+  allocatedAmount Decimal
+  createdAt       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  payment  Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, invoiceId])
+  @@index([businessId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
+}
+
+model LedgerEntry {
+  id           String   @id @default(uuid())
+  businessId   String
+  partyId      String
+  entryType    String // "debit" | "credit"
+  amount       Decimal
+  refInvoiceId String?
+  refPaymentId String?
+  description  String?
+  entryDate    String // YYYY-MM-DD
+  createdAt    DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice  Invoice? @relation(fields: [refInvoiceId], references: [id], onDelete: SetNull)
+  payment  Payment? @relation(fields: [refPaymentId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([businessId, partyId, entryDate])
+  @@index([refInvoiceId])
+  @@index([refPaymentId])
+  @@map("ledger_entries")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  businessId String
+  userId     String?
+  action     String // "INSERT" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "RECONCILE" | "SYSTEM"
+  tableName  String
+  recordId   String
+  diff       String   @default("{}") // JSON string representation
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, createdAt])
+  @@index([businessId, tableName, recordId])
+  @@map("audit_log")
+}
+
+model TaxRateConfig {
+  id            String   @id @default(uuid())
+  businessId    String? // NULL indicates global/system default
+  hsnCode       String
+  description   String?
+  gstRate       Decimal
+  effectiveFrom String // YYYY-MM-DD
+  effectiveTo   String? // YYYY-MM-DD
+  createdAt     DateTime @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([hsnCode, effectiveFrom])
+  @@index([businessId])
+  @@map("tax_rate_config")
+}

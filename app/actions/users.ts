@@ -1,6 +1,5 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   processUserInvitation,
   processUserRevocation,
@@ -113,40 +112,19 @@ export async function inviteBusinessUser(
     return result;
   }
 
-  // If Supabase Admin Client is available, trigger native invite flow
+  // Persist invitation to Prisma if available, with demo store fallback
   try {
-    const adminClient = createAdminClient();
-    if (adminClient) {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-      const { data: authData, error: authError } =
-        await adminClient.auth.admin.inviteUserByEmail(formData.email, {
-          data: {
-            business_id: businessId,
-            role: formData.role,
-          },
-          redirectTo: `${siteUrl}/auth/callback`,
-        });
-
-      if (authError) {
-        return {
-          success: false,
-          error: `Supabase Auth invite failed: ${authError.message}`,
-        };
-      }
-
-      const newUserId = authData?.user?.id;
-      if (newUserId) {
-        await adminClient.from("business_users").insert({
-          business_id: businessId,
-          user_id: newUserId,
-          role: formData.role,
-          status: "invited",
-          invited_email: formData.email,
-        });
-      }
-    }
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.businessUser.create({
+      data: {
+        businessId,
+        userId: result.data.id,
+        role: formData.role,
+        status: "invited",
+      },
+    });
   } catch (err: unknown) {
-    console.warn("Supabase Auth admin invite call failed, proceeding in demo store:", err);
+    console.warn("Prisma businessUser creation fallback to in-memory:", err);
   }
 
   demoMembers.push(result.data);
@@ -173,14 +151,16 @@ export async function revokeBusinessUser(
   }
 
   try {
-    const adminClient = createAdminClient();
-    if (adminClient) {
-      await adminClient
-        .from("business_users")
-        .delete()
-        .eq("id", memberId)
-        .eq("business_id", businessId);
-    }
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.businessUser.updateMany({
+      where: {
+        id: memberId,
+        businessId,
+      },
+      data: {
+        status: "revoked",
+      },
+    });
   } catch {
     // Fall back to demo store
   }

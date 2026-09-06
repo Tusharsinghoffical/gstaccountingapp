@@ -491,7 +491,7 @@ export default function OCRUploadPage() {
                     {selectedFile.name}
                   </h4>
                   <p className="text-xs text-neutral-500 font-mono">
-                    {formatFileSize(selectedFile.size)} • Uploading to Supabase Storage
+                    {formatFileSize(selectedFile.size)} • Saving to Local Storage
                   </p>
                 </div>
               </div>

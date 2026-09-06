@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { signOut } from "next-auth/react";
 
 export interface BusinessItem {
   id: string;
@@ -78,11 +78,8 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   const handleSignOut = async () => {
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      await signOut({ callbackUrl: "/login" });
     } catch {
-      // ignore
-    } finally {
       router.push("/login");
     }
   };

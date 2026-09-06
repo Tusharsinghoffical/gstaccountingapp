@@ -11,8 +11,8 @@ export default function Home() {
             GST Ledger
           </h1>
           <p className="text-slate-600 text-base leading-relaxed">
-            Indian Invoicing and Ledger Management Platform scaffolded with Supabase,
-            Tailwind CSS, Zod, and React Hook Form. AWS-free architecture.
+            Indian Invoicing and Ledger Management Platform built with SQLite, Prisma,
+            NextAuth.js, Tailwind CSS, Zod, and React Hook Form. Cloud-BaaS-free architecture.
           </p>
         </div>
 
@@ -32,9 +32,9 @@ export default function Home() {
               Database & Auth
             </div>
             <div className="text-base font-semibold text-slate-900 mt-1">
-              Supabase SSR & Client
+              Prisma & SQLite (WAL)
             </div>
-            <p className="text-xs text-slate-600 mt-1">@supabase/supabase-js & @supabase/ssr</p>
+            <p className="text-xs text-slate-600 mt-1">Local Storage & NextAuth.js</p>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/70">
@@ -70,8 +70,8 @@ export default function Home() {
         </div>
 
         <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <span>Folder structure: /app, /components, /lib/supabase, /lib/validation, /types</span>
-          <span className="text-emerald-700 font-medium">AWS-Free Verified</span>
+          <span>Folder structure: /app, /components, /lib/data, /lib/auth, /prisma, /types</span>
+          <span className="text-emerald-700 font-medium">100% Local Storage Architecture</span>
         </div>
       </div>
     </main>
