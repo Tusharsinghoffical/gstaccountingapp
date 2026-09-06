@@ -1,70 +1,146 @@
 @echo off
+setlocal EnableDelayedExpansion
+title GST Ledger — Quick Launcher
+
 REM ============================================================================
-REM  GST Ledger — Docker Build & Run Script (Windows)
-REM ============================================================================
-REM  Usage:
-REM    run.bat            — build image + start container (reads .env.local)
-REM    run.bat build      — build image only
-REM    run.bat start      — start container (image must already be built)
-REM    run.bat stop       — stop + remove the container
-REM    run.bat logs       — tail container logs
-REM    run.bat shell      — open a shell inside the running container
-REM    run.bat clean      — stop container + remove image
+REM  GST Ledger — Multi-Mode Launcher (Local Node.js & Docker)
 REM ============================================================================
 
-SET IMAGE_NAME=gst-ledger
-SET CONTAINER_NAME=gst-ledger
-SET PORT=3000
-SET ENV_FILE=.env.local
+set IMAGE_NAME=gst-ledger
+set CONTAINER_NAME=gst-ledger
+set PORT=3000
+set ENV_FILE=.env.local
 
-REM ── Load NEXT_PUBLIC_ vars from .env.local for the build args ───────────────
-IF NOT EXIST %ENV_FILE% (
-    echo [ERROR] %ENV_FILE% not found.
-    echo        Copy .env.local.example to .env.local and fill in your credentials.
-    exit /b 1
+REM ── Check or Auto-Create .env.local ──────────────────────────────────────────
+if not exist "%ENV_FILE%" (
+    if exist ".env.local.example" (
+        echo [INFO] .env.local not found. Creating from .env.local.example...
+        copy .env.local.example .env.local >nul
+    ) else (
+        echo [INFO] Creating default .env.local for offline LocalStorage mode...
+        (
+            echo NEXT_PUBLIC_SUPABASE_URL=https://placeholder-project.supabase.co
+            echo NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon-key
+            echo SUPABASE_SERVICE_ROLE_KEY=placeholder-service-role-key
+            echo GROQ_API_KEY=
+        ) > "%ENV_FILE%"
+    )
+    echo [OK] %ENV_FILE% is ready.
 )
 
-REM Parse NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY from .env.local
-FOR /F "usebackq tokens=1,* delims==" %%A IN ("%ENV_FILE%") DO (
-    IF "%%A"=="NEXT_PUBLIC_SUPABASE_URL"      SET NEXT_PUBLIC_SUPABASE_URL=%%B
-    IF "%%A"=="NEXT_PUBLIC_SUPABASE_ANON_KEY" SET NEXT_PUBLIC_SUPABASE_ANON_KEY=%%B
+REM ── Direct CLI Argument Dispatch ─────────────────────────────────────────────
+if /I "%1"=="dev"     goto RUN_LOCAL
+if /I "%1"=="local"   goto RUN_LOCAL
+if /I "%1"=="docker"  goto DOCKER_BUILD_AND_START
+if /I "%1"=="build"   goto DOCKER_BUILD
+if /I "%1"=="start"   goto DOCKER_START
+if /I "%1"=="stop"    goto DOCKER_STOP
+if /I "%1"=="logs"    goto DOCKER_LOGS
+if /I "%1"=="test"    goto RUN_TESTS
+if /I "%1"=="clean"   goto DOCKER_CLEAN
+
+REM ── Interactive Menu (When run without arguments) ────────────────────────────
+:MENU
+cls
+echo ============================================================================
+echo   GST Ledger — Accounting Management Platform
+echo ============================================================================
+echo.
+echo   [1] Run Locally with Node.js (npm run dev)    - [Fastest / Recommended]
+echo   [2] Run with Docker (Build + Start Container)
+echo   [3] Run Automated Test Suite (npm test)
+echo   [4] Build Production Application (npm run build)
+echo   [5] Stop Docker Container
+echo   [6] View Docker Container Logs
+echo   [7] Exit
+echo.
+echo ============================================================================
+set /p CHOICE="Select an option (1-7) [Default: 1]: "
+
+if "%CHOICE%"==""  goto RUN_LOCAL
+if "%CHOICE%"=="1" goto RUN_LOCAL
+if "%CHOICE%"=="2" goto DOCKER_BUILD_AND_START
+if "%CHOICE%"=="3" goto RUN_TESTS
+if "%CHOICE%"=="4" goto RUN_BUILD
+if "%CHOICE%"=="5" goto DOCKER_STOP
+if "%CHOICE%"=="6" goto DOCKER_LOGS
+if "%CHOICE%"=="7" goto QUIT
+
+echo.
+echo [ERROR] Invalid choice. Please select 1 through 7.
+timeout /t 2 >nul
+goto MENU
+
+REM ── Option 1: Run Locally ───────────────────────────────────────────────────
+:RUN_LOCAL
+echo.
+echo ============================================================================
+echo   Starting GST Ledger locally on http://localhost:3000 ...
+echo ============================================================================
+echo   (Press Ctrl+C at any time to stop)
+echo.
+
+REM Check node_modules
+if not exist "node_modules\" (
+    echo [INFO] Installing project dependencies first (npm install)...
+    call npm install
+    if errorlevel 1 (
+        echo [ERROR] npm install failed.
+        pause
+        goto MENU
+    )
 )
 
-REM ── Dispatch on first argument ───────────────────────────────────────────────
-IF "%1"=="build"  GOTO BUILD
-IF "%1"=="start"  GOTO START
-IF "%1"=="stop"   GOTO STOP
-IF "%1"=="logs"   GOTO LOGS
-IF "%1"=="shell"  GOTO SHELL
-IF "%1"=="clean"  GOTO CLEAN
+start "" http://localhost:3000
+call npm run dev
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Development server exited with an error.
+    pause
+)
+goto MENU
 
-REM Default: build then start
-GOTO BUILD_AND_START
+REM ── Option 2: Docker Build & Start ──────────────────────────────────────────
+:DOCKER_BUILD_AND_START
+echo.
+echo [GST Ledger] Checking Docker service...
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Docker is not running or not installed!
+    echo         Please start Docker Desktop, or choose Option [1] to run without Docker.
+    echo.
+    pause
+    goto MENU
+)
 
-REM ── BUILD ────────────────────────────────────────────────────────────────────
-:BUILD
+REM Parse NEXT_PUBLIC_ vars from .env.local for Docker build args
+set NEXT_PUBLIC_SUPABASE_URL=
+set NEXT_PUBLIC_SUPABASE_ANON_KEY=
+for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
+    if "%%A"=="NEXT_PUBLIC_SUPABASE_URL"      set NEXT_PUBLIC_SUPABASE_URL=%%B
+    if "%%A"=="NEXT_PUBLIC_SUPABASE_ANON_KEY" set NEXT_PUBLIC_SUPABASE_ANON_KEY=%%B
+)
+
 echo.
 echo [GST Ledger] Building Docker image: %IMAGE_NAME% ...
-echo.
 docker build ^
     --build-arg NEXT_PUBLIC_SUPABASE_URL="%NEXT_PUBLIC_SUPABASE_URL%" ^
     --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="%NEXT_PUBLIC_SUPABASE_ANON_KEY%" ^
     -t %IMAGE_NAME% .
 
-IF ERRORLEVEL 1 (
+if errorlevel 1 (
     echo.
-    echo [ERROR] Docker build failed. See output above.
-    exit /b 1
+    echo [ERROR] Docker build failed.
+    pause
+    goto MENU
 )
-echo.
-echo [OK] Image built: %IMAGE_NAME%
-GOTO END
 
-REM ── START ────────────────────────────────────────────────────────────────────
-:START
 echo.
-echo [GST Ledger] Starting container: %CONTAINER_NAME% on port %PORT% ...
-echo.
+echo [GST Ledger] Stopping previous container instance if running...
+docker rm -f %CONTAINER_NAME% >nul 2>&1
+
+echo [GST Ledger] Starting Docker container: %CONTAINER_NAME% on port %PORT% ...
 docker run -d ^
     --name %CONTAINER_NAME% ^
     --env-file %ENV_FILE% ^
@@ -72,69 +148,75 @@ docker run -d ^
     --restart unless-stopped ^
     %IMAGE_NAME%
 
-IF ERRORLEVEL 1 (
+if errorlevel 1 (
     echo.
-    echo [ERROR] Failed to start container.
-    echo        If a container with this name already exists, run:  run.bat stop
-    exit /b 1
+    echo [ERROR] Failed to start Docker container.
+    pause
+    goto MENU
 )
+
 echo.
-echo [OK] Container started.  Open http://localhost:%PORT%
-GOTO END
-
-REM ── BUILD + START (default) ──────────────────────────────────────────────────
-:BUILD_AND_START
-CALL :BUILD_INLINE
-IF ERRORLEVEL 1 exit /b 1
-
-REM Stop + remove any existing container with the same name
-docker rm -f %CONTAINER_NAME% >nul 2>&1
-
-GOTO START
-
-:BUILD_INLINE
+echo [OK] GST Ledger is now running in Docker!
+echo      URL: http://localhost:%PORT%
+start "" http://localhost:%PORT%
 echo.
-echo [GST Ledger] Building Docker image: %IMAGE_NAME% ...
-echo.
-docker build ^
-    --build-arg NEXT_PUBLIC_SUPABASE_URL="%NEXT_PUBLIC_SUPABASE_URL%" ^
-    --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="%NEXT_PUBLIC_SUPABASE_ANON_KEY%" ^
-    -t %IMAGE_NAME% .
-EXIT /B %ERRORLEVEL%
+pause
+goto MENU
 
-REM ── STOP ─────────────────────────────────────────────────────────────────────
-:STOP
+REM ── Option 3: Automated Tests ───────────────────────────────────────────────
+:RUN_TESTS
+echo.
+echo ============================================================================
+echo   Running Automated Test Suite & Multi-Tenant RLS Penetration Suite ...
+echo ============================================================================
+echo.
+call npm test
+echo.
+pause
+goto MENU
+
+REM ── Option 4: Production Build ──────────────────────────────────────────────
+:RUN_BUILD
+echo.
+echo ============================================================================
+echo   Building Production Bundle (Next.js) ...
+echo ============================================================================
+echo.
+call npm run build
+echo.
+pause
+goto MENU
+
+REM ── Option 5: Stop Docker Container ─────────────────────────────────────────
+:DOCKER_STOP
 echo.
 echo [GST Ledger] Stopping and removing container: %CONTAINER_NAME% ...
 docker stop %CONTAINER_NAME% >nul 2>&1
 docker rm   %CONTAINER_NAME% >nul 2>&1
 echo [OK] Container stopped and removed.
-GOTO END
-
-REM ── LOGS ─────────────────────────────────────────────────────────────────────
-:LOGS
 echo.
-echo [GST Ledger] Tailing logs for: %CONTAINER_NAME%  (Ctrl+C to exit)
+pause
+goto MENU
+
+REM ── Option 6: View Docker Logs ──────────────────────────────────────────────
+:DOCKER_LOGS
+echo.
+echo [GST Ledger] Viewing logs for container: %CONTAINER_NAME% (Ctrl+C to exit)
 echo.
 docker logs -f %CONTAINER_NAME%
-GOTO END
+pause
+goto MENU
 
-REM ── SHELL ────────────────────────────────────────────────────────────────────
-:SHELL
+REM ── Docker Clean ────────────────────────────────────────────────────────────
+:DOCKER_CLEAN
 echo.
-echo [GST Ledger] Opening shell in container: %CONTAINER_NAME%
-docker exec -it %CONTAINER_NAME% /bin/sh
-GOTO END
-
-REM ── CLEAN ────────────────────────────────────────────────────────────────────
-:CLEAN
-echo.
-echo [GST Ledger] Cleaning up container and image ...
+echo [GST Ledger] Removing container and image: %IMAGE_NAME% ...
 docker stop %CONTAINER_NAME% >nul 2>&1
 docker rm   %CONTAINER_NAME% >nul 2>&1
-docker rmi  %IMAGE_NAME%     >nul 2>&1
-echo [OK] Container and image removed.
-GOTO END
+docker rmi  %IMAGE_NAME% >nul 2>&1
+echo [OK] Docker cleanup complete.
+pause
+goto MENU
 
-:END
-echo.
+:QUIT
+exit /b 0

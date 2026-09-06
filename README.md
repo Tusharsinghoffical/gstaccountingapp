@@ -8,9 +8,12 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 
 - [Tech Stack](#tech-stack)
 - [Features](#features)
+- [Hybrid Storage & Offline Mode](#hybrid-storage--offline-mode)
 - [Architecture](#architecture)
+- [Quick Start (Windows `run.bat`)](#quick-start-windows-runbat)
 - [Environment Variables](#environment-variables)
 - [Local Development](#local-development)
+- [Docker Deployment](#docker-deployment)
 - [Supabase Setup](#supabase-setup)
 - [Render Deployment](#render-deployment)
 - [CI / Testing](#ci--testing)
@@ -26,9 +29,10 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 | Frontend | Next.js 14 (App Router), React 18, TypeScript |
 | Styling | Tailwind CSS 3 |
 | Backend / DB | Supabase (PostgreSQL, Edge Functions, Auth, Storage) |
+| Offline / Local Storage | Client-side LocalStorage DB with automatic fallback & seed data |
 | AI / OCR | Groq API (Vision + Chat Completions), Tesseract.js fallback |
 | Excel Export | ExcelJS (server-side, Edge Functions) |
-| Testing | Node.js built-in test runner (`node:test`) |
+| Testing | Node.js test runner with `tsx` (`node --import tsx --test tests/*.test.ts`) |
 | CI | GitHub Actions |
 | Hosting | Render (frontend) + Supabase (backend, already hosted) |
 
@@ -36,6 +40,7 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 
 ## Features
 
+- **Hybrid Storage Engine** — Supabase cloud database with automatic offline LocalStorage fallback
 - **Multi-tenant** with strict Row-Level Security (RLS) — every row is business-scoped
 - **Sales & Purchase Invoices** — GST-compliant with CGST/SGST/IGST, HSN codes, line items
 - **Party Ledger** — Running balance maintained atomically via Postgres triggers
@@ -46,7 +51,24 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 - **Outstanding & Ageing Report** — 0-30/31-60/61-90/90+ day buckets with XLSX and PDF export
 - **User Management** — Admin-only; invite by email via Supabase Auth, assign roles
 - **Audit Log** — Admin-only read-only view of all financial mutations (triggers, not app code)
-- **RLS Penetration Tests** — 800+ automated cross-tenant isolation assertions run in CI
+- **RLS Penetration Tests** — 169 automated assertions across 26 test suites run in CI
+
+---
+
+## Hybrid Storage & Offline Mode
+
+GST Ledger offers **Dual Storage Architecture**:
+1. **Supabase (Primary / Cloud)**: Connected by default when configured with valid project credentials. Enforces PostgreSQL RLS, triggers, and cloud authentication.
+2. **LocalStorage (Fallback / Offline)**: Activates automatically when:
+   - Supabase project is not yet configured or placeholder keys are used
+   - Network connection is offline or drops
+   - Supabase connection times out (> 4 seconds)
+   
+*Features available offline:*
+- Full Invoices, Customers, Suppliers, Payments, and Ledger CRUD
+- Client-side Audit Trail logging
+- One-click JSON data backup export
+- Sticky Offline Status Banner with "Retry Connection" capability
 
 ---
 
@@ -75,6 +97,46 @@ A production-grade, multi-tenant GST accounting system built with **Next.js 14**
 │  └── Chat — Invoice category classification     │
 └─────────────────────────────────────────────────┘
 ```
+
+---
+
+## Quick Start (Windows `run.bat`)
+
+If you are on Windows, you can start the application with a single click:
+
+1. **Double-click `run.bat`** in the project folder, OR open terminal and run:
+   ```cmd
+   .\run.bat
+   ```
+2. You will see an interactive menu:
+   ```text
+   ============================================================================
+     GST Ledger — Accounting Management Platform
+   ============================================================================
+
+     [1] Run Locally with Node.js (npm run dev)    - [Fastest / Recommended]
+     [2] Run with Docker (Build + Start Container)
+     [3] Run Automated Test Suite (npm test)
+     [4] Build Production Application (npm run build)
+     [5] Stop Docker Container
+     [6] View Docker Container Logs
+     [7] Exit
+
+   ============================================================================
+   Select an option (1-7) [Default: 1]:
+   ```
+3. Press **Enter** or select `1` to run locally.
+   - Automatically initializes `.env.local` if missing.
+   - Automatically verifies dependencies.
+   - Automatically opens your browser at [http://localhost:3000](http://localhost:3000).
+
+### CLI Shortcut Flags for `run.bat`:
+- `.\run.bat dev` — Launch local Next.js dev server directly
+- `.\run.bat docker` — Build image and run Docker container
+- `.\run.bat test` — Execute automated unit & RLS penetration tests
+- `.\run.bat build` — Run production bundle build
+- `.\run.bat stop` — Stop Docker container
+- `.\run.bat logs` — Tail live Docker logs
 
 ---
 
@@ -156,6 +218,33 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Docker Deployment
+
+You can build and run the application in a production-optimized container using either Docker Compose or standard Docker commands:
+
+### Option A: Using Docker Compose
+```bash
+# Start container in detached mode
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop container
+docker compose down
+```
+
+### Option B: Using Docker CLI
+```bash
+# 1. Build image
+docker build -t gst-ledger .
+
+# 2. Run container
+docker run -d --name gst-ledger --env-file .env.local -p 3000:3000 gst-ledger
+```
 
 ---
 
